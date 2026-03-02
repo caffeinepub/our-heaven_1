@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/assets/fonts/Fraunces.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Outfit";
+  src: url("/assets/fonts/Outfit.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 1rem;
+
+    /* Our Heaven — Celestial Dark Theme */
+    /* Deep space background with gold/amber accents */
+    --background: 0.10 0.02 280;
+    --foreground: 0.95 0.03 75;
+
+    --card: 0.14 0.03 275;
+    --card-foreground: 0.95 0.03 75;
+
+    --popover: 0.16 0.04 275;
+    --popover-foreground: 0.95 0.03 75;
+
+    /* Gold/amber primary */
+    --primary: 0.80 0.15 75;
+    --primary-foreground: 0.12 0.02 280;
+
+    --secondary: 0.18 0.04 270;
+    --secondary-foreground: 0.90 0.03 75;
+
+    --muted: 0.16 0.02 275;
+    --muted-foreground: 0.60 0.05 75;
+
+    /* Warm gold accent */
+    --accent: 0.75 0.18 65;
+    --accent-foreground: 0.10 0.02 280;
+
+    --destructive: 0.65 0.22 22;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.25 0.05 270;
+    --input: 0.20 0.04 275;
+    --ring: 0.75 0.15 75;
+
+    --chart-1: 0.80 0.15 75;
+    --chart-2: 0.65 0.15 260;
+    --chart-3: 0.70 0.18 150;
+    --chart-4: 0.75 0.20 30;
+    --chart-5: 0.60 0.18 320;
+
+    --sidebar: 0.12 0.03 278;
+    --sidebar-foreground: 0.90 0.04 75;
+    --sidebar-primary: 0.80 0.15 75;
+    --sidebar-primary-foreground: 0.10 0.02 280;
+    --sidebar-accent: 0.18 0.04 270;
+    --sidebar-accent-foreground: 0.90 0.04 75;
+    --sidebar-border: 0.25 0.05 270;
+    --sidebar-ring: 0.75 0.15 75;
+
+    /* Custom tokens */
+    --gold: 0.80 0.18 75;
+    --gold-dim: 0.65 0.12 75;
+    --deep-space: 0.08 0.03 285;
+    --starlight: 0.95 0.04 75;
+    --nebula: 0.30 0.08 275;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Outfit", sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Fraunces", serif;
+  }
+
+  .text-gold {
+    color: oklch(var(--gold));
+  }
+
+  .text-starlight {
+    color: oklch(var(--starlight));
+  }
+
+  .bg-deep-space {
+    background-color: oklch(var(--deep-space));
+  }
+
+  .bg-nebula {
+    background-color: oklch(var(--nebula));
+  }
+
+  .border-gold {
+    border-color: oklch(var(--gold));
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 20px oklch(var(--gold) / 0.4), 0 0 40px oklch(var(--gold) / 0.2);
+  }
+
+  .glow-gold-sm {
+    box-shadow: 0 0 10px oklch(var(--gold) / 0.3);
+  }
+
+  .text-glow-gold {
+    text-shadow: 0 0 20px oklch(var(--gold) / 0.6), 0 0 40px oklch(var(--gold) / 0.3);
+  }
+
+  .celestial-bg {
+    background: radial-gradient(
+        ellipse at 20% 50%,
+        oklch(0.18 0.08 275 / 0.6) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse at 80% 20%,
+        oklch(0.15 0.06 260 / 0.4) 0%,
+        transparent 50%
+      ),
+      oklch(var(--deep-space));
+  }
+
+  .card-celestial {
+    background: linear-gradient(
+      135deg,
+      oklch(0.16 0.05 275 / 0.9) 0%,
+      oklch(0.12 0.03 280 / 0.95) 100%
+    );
+    border: 1px solid oklch(var(--gold) / 0.2);
+    backdrop-filter: blur(12px);
+  }
+}
+
+/* Fireworks animation */
+@keyframes firework-burst {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes spark {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 10px oklch(var(--gold) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px oklch(var(--gold) / 0.6), 0 0 60px oklch(var(--gold) / 0.3);
+  }
+}
+
+@keyframes star-twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(var(--gold) / 0) 0%,
+    oklch(var(--gold) / 0.3) 50%,
+    oklch(var(--gold) / 0) 100%
+  );
+  background-size: 200% auto;
+  animation: shimmer 2s linear infinite;
+}
+
+.star-twinkle {
+  animation: star-twinkle 2s ease-in-out infinite;
+}

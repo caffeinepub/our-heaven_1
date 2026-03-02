@@ -1,0 +1,3564 @@
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Toaster } from "@/components/ui/sonner";
+import {
+  ArrowLeft,
+  ArrowUp,
+  Bell,
+  BookOpen,
+  Cake,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Edit2,
+  ExternalLink,
+  GraduationCap,
+  Heart,
+  ImageIcon,
+  Lightbulb,
+  Loader2,
+  MessageCircle,
+  MessageSquare,
+  Music,
+  Music2,
+  Plus,
+  Send,
+  Shield,
+  Star,
+  Trash2,
+  User,
+  Video,
+  X,
+  Youtube,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import type { backendInterface } from "./backend.d.ts";
+import type {
+  Birthday,
+  ImportantMessage,
+  MeetLink,
+  Message,
+  StarOfTheMonth,
+} from "./backend.d.ts";
+import { useActor } from "./hooks/useActor";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Screen =
+  | "splash"
+  | "welcome"
+  | "register"
+  | "account-ready"
+  | "home"
+  | "messages"
+  | "stars"
+  | "birthdays"
+  | "meet"
+  | "important-messages"
+  | "your-ideas"
+  | "photos"
+  | "whatsapp"
+  | "youtube"
+  | "calendar"
+  | "school-works"
+  | "rules"
+  | "attendance"
+  | "prayer"
+  | "group-chat"
+  | "home-works"
+  | "notifications";
+
+interface NotificationItem {
+  id: string;
+  boxName: string;
+  message: string;
+  timestamp: number;
+  read: boolean;
+}
+
+interface UserData {
+  firstName: string;
+  lastName: string;
+  dob: string;
+  phone: string;
+  password: string;
+}
+
+// ─── Actor Context ────────────────────────────────────────────────────────────
+
+const ActorContext = createContext<backendInterface | null>(null);
+
+function useBackendActor(): backendInterface | null {
+  return useContext(ActorContext);
+}
+
+// ─── Shared AudioContext (survives across calls) ──────────────────────────────
+
+let sharedAudioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext | null {
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
+      sharedAudioCtx = new AudioCtx();
+    }
+    return sharedAudioCtx;
+  } catch {
+    return null;
+  }
+}
+
+// Resume AudioContext (call after any user gesture)
+function resumeAudio() {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
+}
+
+// ─── Fireworks Sound ──────────────────────────────────────────────────────────
+
+function playFireworkSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+    resume
+      .then(() => {
+        const now = ctx.currentTime;
+
+        // Low-frequency boom
+        const osc = ctx.createOscillator();
+        const boomGain = ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.35);
+        boomGain.gain.setValueAtTime(0.9, now);
+        boomGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(boomGain);
+        boomGain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.45);
+
+        // White noise crackle / sparkle
+        const bufferSize = Math.floor(ctx.sampleRate * 0.25);
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noiseSource = ctx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.4, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        noiseSource.connect(noiseGain);
+        noiseGain.connect(ctx.destination);
+        noiseSource.start(now);
+
+        // High whistle rise before boom
+        const whistle = ctx.createOscillator();
+        const whistleGain = ctx.createGain();
+        whistle.type = "sine";
+        whistle.frequency.setValueAtTime(400, now);
+        whistle.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+        whistleGain.gain.setValueAtTime(0.3, now);
+        whistleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        whistle.connect(whistleGain);
+        whistleGain.connect(ctx.destination);
+        whistle.start(now);
+        whistle.stop(now + 0.2);
+      })
+      .catch(() => {});
+  } catch {
+    // Silently ignore — audio not critical
+  }
+}
+
+// ─── Fireworks Canvas ─────────────────────────────────────────────────────────
+
+function FireworksCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    type Particle = {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      alpha: number;
+      color: string;
+      size: number;
+    };
+
+    const particles: Particle[] = [];
+    const colors = [
+      "#FFD700",
+      "#FFA500",
+      "#FF6B6B",
+      "#A855F7",
+      "#60A5FA",
+      "#34D399",
+      "#F472B6",
+      "#FBBF24",
+      "#C084FC",
+      "#FB923C",
+    ];
+
+    const createBurst = (x: number, y: number) => {
+      const count = 60;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2;
+        const speed = 2 + Math.random() * 6;
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1,
+          color,
+          size: 2 + Math.random() * 3,
+        });
+      }
+    };
+
+    const burstPositions = [
+      [0.2, 0.25],
+      [0.5, 0.15],
+      [0.8, 0.3],
+      [0.15, 0.5],
+      [0.85, 0.55],
+      [0.4, 0.7],
+      [0.65, 0.2],
+      [0.35, 0.4],
+      [0.7, 0.6],
+    ];
+
+    let burstIdx = 0;
+    const burstTimer = setInterval(() => {
+      if (burstIdx < burstPositions.length) {
+        const pos = burstPositions[burstIdx];
+        createBurst(canvas.width * pos[0], canvas.height * pos[1]);
+        burstIdx++;
+      } else {
+        clearInterval(burstTimer);
+      }
+    }, 200);
+
+    let animId: number;
+    const animate = () => {
+      ctx.fillStyle = "rgba(10, 8, 25, 0.15)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.08;
+        p.alpha -= 0.012;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      animId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      clearInterval(burstTimer);
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none"
+    />
+  );
+}
+
+// ─── Background Music Player ──────────────────────────────────────────────────
+
+// A gentle looping ambient melody hosted on a public CDN
+const MUSIC_URL =
+  "https://cdn.pixabay.com/audio/2023/10/09/audio_2e5c013c50.mp3";
+
+function MusicPlayer() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const audio = new Audio(MUSIC_URL);
+    audio.loop = true;
+    audio.volume = 0.35;
+    audioRef.current = audio;
+
+    const onCanPlay = () => setReady(true);
+    audio.addEventListener("canplaythrough", onCanPlay);
+
+    return () => {
+      audio.removeEventListener("canplaythrough", onCanPlay);
+      audio.pause();
+      audio.src = "";
+    };
+  }, []);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+    } else {
+      audio
+        .play()
+        .then(() => setPlaying(true))
+        .catch(() => {});
+    }
+  };
+
+  return (
+    <motion.button
+      onClick={toggle}
+      className="fixed bottom-5 left-4 z-50 w-11 h-11 rounded-full bg-card border border-gold/40 flex items-center justify-center shadow-lg hover:border-gold transition-all"
+      title={playing ? "Pause music" : "Play music"}
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.92 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: ready ? 1 : 0.4, y: 0 }}
+      transition={{ delay: 1 }}
+    >
+      {playing ? (
+        <Music2 className="w-5 h-5 text-gold animate-pulse" />
+      ) : (
+        <Music className="w-5 h-5 text-gold/60" />
+      )}
+    </motion.button>
+  );
+}
+
+// ─── Stars Background ─────────────────────────────────────────────────────────
+
+function StarsBackground() {
+  const stars = useRef(
+    Array.from({ length: 80 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 2 + 0.5,
+      delay: Math.random() * 3,
+      duration: 2 + Math.random() * 3,
+    })),
+  );
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {stars.current.map((star) => (
+        <div
+          key={star.id}
+          className="absolute rounded-full bg-starlight"
+          style={{
+            left: `${star.x}%`,
+            top: `${star.y}%`,
+            width: `${star.size}px`,
+            height: `${star.size}px`,
+            opacity: 0.3,
+            animation: `star-twinkle ${star.duration}s ease-in-out infinite`,
+            animationDelay: `${star.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Screen 1: Splash / Loading ────────────────────────────────────────────────
+
+function SplashScreen({ onComplete }: { onComplete: () => void }) {
+  const [count, setCount] = useState(0);
+  const [phase, setPhase] = useState<"loading" | "fireworks" | "welcome">(
+    "loading",
+  );
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
+  const completedRef = useRef(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCount((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return prev + 1;
+      });
+    }, 30);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (count >= 100 && !completedRef.current) {
+      completedRef.current = true;
+      setPhase("fireworks");
+
+      // Play firework sounds matching the 9 visual bursts fired every 200ms
+      const soundTimers: ReturnType<typeof setTimeout>[] = [];
+      for (let i = 0; i < 9; i++) {
+        soundTimers.push(setTimeout(() => playFireworkSound(), i * 200));
+      }
+
+      const t1 = setTimeout(() => {
+        setPhase("welcome");
+        setWelcomeVisible(true);
+      }, 2000);
+      const t2 = setTimeout(() => {
+        onComplete();
+      }, 7000);
+      return () => {
+        soundTimers.forEach(clearTimeout);
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }
+  }, [count, onComplete]);
+
+  const circleSize = Math.max(40, (count / 100) * 280);
+
+  return (
+    <div
+      className="relative min-h-screen celestial-bg flex items-center justify-center overflow-hidden"
+      onClick={resumeAudio}
+      onKeyDown={resumeAudio}
+    >
+      <StarsBackground />
+      {phase === "fireworks" && <FireworksCanvas />}
+
+      <AnimatePresence mode="wait">
+        {phase === "loading" && (
+          <motion.div
+            key="loading"
+            className="flex flex-col items-center gap-8 z-10"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="rounded-full border-2 border-gold flex items-center justify-center glow-gold"
+              style={{
+                width: circleSize,
+                height: circleSize,
+                background:
+                  "radial-gradient(circle at center, oklch(0.20 0.08 75 / 0.3), oklch(0.10 0.03 285 / 0.8))",
+                transition: "width 0.03s linear, height 0.03s linear",
+              }}
+            >
+              <span
+                className="font-display text-gold font-bold"
+                style={{ fontSize: Math.max(16, circleSize * 0.28) }}
+              >
+                {count}
+              </span>
+            </motion.div>
+            <div className="text-muted-foreground font-sans text-sm tracking-widest uppercase">
+              Loading Our Heaven
+            </div>
+          </motion.div>
+        )}
+
+        {phase === "welcome" && welcomeVisible && (
+          <motion.div
+            key="welcome"
+            className="z-10 flex flex-col items-center gap-6 text-center px-8"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+          >
+            <motion.img
+              src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
+              alt="Our Heaven"
+              className="w-24 h-24 animate-float"
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            />
+            <motion.h1
+              className="font-display text-5xl md:text-7xl font-bold text-gold text-glow-gold"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              Welcome to Our Heaven
+            </motion.h1>
+            <motion.div
+              className="w-32 h-0.5 bg-gold opacity-60"
+              initial={{ width: 0 }}
+              animate={{ width: 128 }}
+              transition={{ delay: 1, duration: 0.8 }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Screen 2: Welcome / Create Account ────────────────────────────────────────
+
+function WelcomeScreen({ onCreateAccount }: { onCreateAccount: () => void }) {
+  return (
+    <div
+      className="relative min-h-screen celestial-bg flex items-center justify-center overflow-hidden"
+      onClick={resumeAudio}
+      onKeyDown={resumeAudio}
+    >
+      <StarsBackground />
+      <motion.div
+        className="z-10 flex flex-col items-center gap-8 text-center px-8 max-w-md w-full"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7 }}
+      >
+        <motion.img
+          src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
+          alt="Our Heaven"
+          className="w-28 h-28 animate-float"
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.6, ease: "backOut" }}
+        />
+
+        <div>
+          <h1 className="font-display text-4xl md:text-5xl font-bold text-gold text-glow-gold mb-3">
+            Our Heaven
+          </h1>
+          <p className="text-muted-foreground text-lg font-sans">
+            Chat, learn, and grow together in our sacred space
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 w-full">
+          {[
+            "💬 Connect with friends",
+            "🎓 Grow through education",
+            "⭐ Celebrate each other",
+          ].map((item, i) => (
+            <motion.div
+              key={item}
+              className="card-celestial rounded-lg px-4 py-3 text-sm text-foreground/80"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 + i * 0.15 }}
+            >
+              {item}
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          className="w-full"
+        >
+          <Button
+            onClick={onCreateAccount}
+            className="w-full h-14 text-lg font-display font-semibold bg-gold text-deep-space hover:bg-accent rounded-xl glow-gold-sm transition-all duration-300 hover:scale-[1.02]"
+          >
+            Create Account
+          </Button>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Screen 3: Registration Form ────────────────────────────────────────────────
+
+interface RegistrationFormProps {
+  onNext: (data: UserData) => void;
+}
+
+function RegistrationForm({ onNext }: RegistrationFormProps) {
+  const actor = useBackendActor();
+  const [form, setForm] = useState<UserData>({
+    firstName: "",
+    lastName: "",
+    dob: "",
+    phone: "",
+    password: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Partial<UserData>>({});
+
+  const validate = () => {
+    const e: Partial<UserData> = {};
+    if (!form.firstName.trim()) e.firstName = "Required";
+    if (!form.lastName.trim()) e.lastName = "Required";
+    if (!form.dob) e.dob = "Required";
+    if (!form.phone.trim() || form.phone.length < 7)
+      e.phone = "Enter valid phone";
+    if (!form.password || form.password.length < 6)
+      e.password = "Min 6 characters";
+    return e;
+  };
+
+  const handleNext = async () => {
+    const e = validate();
+    if (Object.keys(e).length > 0) {
+      setErrors(e);
+      return;
+    }
+    setLoading(true);
+    try {
+      if (actor) {
+        try {
+          await actor.registerAccount(
+            form.firstName,
+            form.lastName,
+            form.dob,
+            form.phone,
+            form.password,
+          );
+        } catch {
+          // Backend may reject new users due to permission rules - continue anyway, data stored locally
+        }
+      }
+      onNext(form);
+    } catch {
+      toast.error("Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const update =
+    (field: keyof UserData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      setForm((p) => ({ ...p, [field]: e.target.value }));
+      setErrors((p) => ({ ...p, [field]: undefined }));
+    };
+
+  const fields: Array<{
+    key: keyof UserData;
+    label: string;
+    type: string;
+    placeholder: string;
+  }> = [
+    {
+      key: "firstName",
+      label: "First Name",
+      type: "text",
+      placeholder: "Enter your first name",
+    },
+    {
+      key: "lastName",
+      label: "Last Name",
+      type: "text",
+      placeholder: "Enter your last name",
+    },
+    { key: "dob", label: "Date of Birth", type: "date", placeholder: "" },
+    {
+      key: "phone",
+      label: "Phone Number",
+      type: "tel",
+      placeholder: "+1 234 567 8900",
+    },
+    {
+      key: "password",
+      label: "Password",
+      type: "password",
+      placeholder: "At least 6 characters",
+    },
+  ];
+
+  return (
+    <div className="relative min-h-screen celestial-bg flex items-center justify-center overflow-hidden py-8">
+      <StarsBackground />
+      <motion.div
+        className="z-10 w-full max-w-sm px-6"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="text-center mb-8">
+          <img
+            src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
+            alt="Logo"
+            className="w-14 h-14 mx-auto mb-4"
+          />
+          <h1 className="font-display text-3xl font-bold text-gold">
+            Create Account
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Join Our Heaven today
+          </p>
+        </div>
+
+        <div className="card-celestial rounded-2xl p-6 space-y-4">
+          {fields.map((field, i) => (
+            <motion.div
+              key={field.key}
+              initial={{ opacity: 0, x: -15 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.08 }}
+            >
+              <Label className="text-foreground/80 text-sm mb-1.5 block">
+                {field.label}
+              </Label>
+              <Input
+                type={field.type}
+                placeholder={field.placeholder}
+                value={form[field.key]}
+                onChange={update(field.key)}
+                className={`bg-input border-border text-foreground placeholder:text-muted-foreground focus:ring-gold focus:border-gold h-11 ${
+                  errors[field.key] ? "border-destructive" : ""
+                }`}
+              />
+              {errors[field.key] && (
+                <p className="text-destructive text-xs mt-1">
+                  {errors[field.key]}
+                </p>
+              )}
+            </motion.div>
+          ))}
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="pt-2"
+          >
+            <Button
+              onClick={handleNext}
+              disabled={loading}
+              className="w-full h-12 bg-gold text-deep-space hover:bg-accent font-display font-semibold text-base rounded-xl glow-gold-sm transition-all"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : null}
+              {loading ? "Creating Account..." : "Next"}
+            </Button>
+          </motion.div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Screen 4: Account Ready ───────────────────────────────────────────────────
+
+function AccountReadyScreen({
+  firstName,
+  onComplete,
+}: {
+  firstName: string;
+  onComplete: () => void;
+}) {
+  useEffect(() => {
+    // Play firework sounds on account success
+    resumeAudio();
+    const soundTimers: ReturnType<typeof setTimeout>[] = [];
+    for (let i = 0; i < 6; i++) {
+      soundTimers.push(setTimeout(() => playFireworkSound(), i * 300));
+    }
+    const t = setTimeout(onComplete, 3000);
+    return () => {
+      soundTimers.forEach(clearTimeout);
+      clearTimeout(t);
+    };
+  }, [onComplete]);
+
+  return (
+    <div className="relative min-h-screen celestial-bg flex items-center justify-center overflow-hidden">
+      <StarsBackground />
+      <FireworksCanvas />
+      <motion.div
+        className="z-10 flex flex-col items-center gap-6 text-center px-8"
+        initial={{ opacity: 0, scale: 0.7 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6, ease: "backOut" }}
+      >
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.2, duration: 0.5, ease: "backOut" }}
+        >
+          <CheckCircle2 className="w-24 h-24 text-gold drop-shadow-[0_0_20px_oklch(0.80_0.18_75/0.6)]" />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <h1 className="font-display text-3xl md:text-4xl font-bold text-gold text-glow-gold mb-3">
+            Welcome to Our Heaven, {firstName}!
+          </h1>
+          <p className="text-foreground/80 text-lg font-sans">
+            Your account is ready 🌟
+          </p>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Screen 6: Home Page ────────────────────────────────────────────────────────
+
+interface HomeScreenProps {
+  user: UserData;
+  onNavigate: (screen: Screen) => void;
+  onUpdateUser: (u: UserData) => void;
+  unreadCount?: number;
+  notificationCount?: number;
+}
+
+const LEADERS = [
+  "aaron",
+  "jojo",
+  "nevveen",
+  "nevveen ps",
+  "aaron david",
+  "aaron david jojo",
+];
+
+function isLeader(firstName: string, lastName?: string): boolean {
+  const first = firstName.trim().toLowerCase();
+  const full = lastName ? `${first} ${lastName.trim().toLowerCase()}` : first;
+  return (
+    LEADERS.includes(first) ||
+    LEADERS.includes(full) ||
+    LEADERS.some((l) => first.startsWith(l) || l.startsWith(first))
+  );
+}
+
+function HomeScreen({
+  user,
+  onNavigate,
+  onUpdateUser,
+  unreadCount = 0,
+  notificationCount = 0,
+}: HomeScreenProps) {
+  const actor = useBackendActor();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ ...user });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!actor) return;
+    setSaving(true);
+    try {
+      await actor.updateAccount(
+        user.phone,
+        editForm.firstName,
+        editForm.lastName,
+        editForm.dob,
+        editForm.password,
+      );
+      onUpdateUser({ ...editForm, phone: user.phone });
+      setEditOpen(false);
+      toast.success("Account updated!");
+    } catch {
+      toast.error("Failed to update account.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const featureBoxes: Array<{
+    screen: Screen;
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    desc: string;
+  }> = [
+    {
+      screen: "notifications",
+      icon: Bell,
+      label: "Notifications",
+      desc: "All messages & updates",
+    },
+    {
+      screen: "messages",
+      icon: MessageSquare,
+      label: "Messages",
+      desc: "Chat with friends",
+    },
+    {
+      screen: "group-chat",
+      icon: MessageCircle,
+      label: "Group Chat",
+      desc: "Everyone talks here",
+    },
+    {
+      screen: "important-messages",
+      icon: Bell,
+      label: "Important Messages",
+      desc: "Stay informed",
+    },
+    {
+      screen: "your-ideas",
+      icon: Lightbulb,
+      label: "Your Ideas",
+      desc: "Share your thoughts",
+    },
+    {
+      screen: "home-works",
+      icon: BookOpen,
+      label: "Home Works",
+      desc: "Homework assignments",
+    },
+    {
+      screen: "school-works",
+      icon: GraduationCap,
+      label: "School Works",
+      desc: "Textbooks & resources",
+    },
+    {
+      screen: "stars",
+      icon: Star,
+      label: "Star of the Month",
+      desc: "Monthly highlights",
+    },
+    {
+      screen: "birthdays",
+      icon: Cake,
+      label: "Birthday Dates",
+      desc: "Celebrate together",
+    },
+    { screen: "meet", icon: Video, label: "Meet", desc: "Join meetings" },
+    {
+      screen: "attendance",
+      icon: ClipboardList,
+      label: "Attendance & Level",
+      desc: "Track attendance",
+    },
+    {
+      screen: "photos",
+      icon: ImageIcon,
+      label: "Photos",
+      desc: "Our memories",
+    },
+    {
+      screen: "calendar",
+      icon: CalendarDays,
+      label: "Dates & Calendar",
+      desc: "Important dates",
+    },
+    { screen: "prayer", icon: Heart, label: "Prayer", desc: "Our prayers" },
+    {
+      screen: "whatsapp",
+      icon: MessageCircle,
+      label: "WhatsApp Group",
+      desc: "Join our group",
+    },
+    {
+      screen: "youtube",
+      icon: Youtube,
+      label: "YouTube Channel",
+      desc: "Watch our videos",
+    },
+    { screen: "rules", icon: Shield, label: "Rules", desc: "Community rules" },
+  ];
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-8 pb-16">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <img
+              src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
+              alt="Our Heaven"
+              className="w-12 h-12"
+            />
+            <div>
+              <h1 className="font-display text-2xl font-bold text-gold">
+                Our Heaven
+              </h1>
+              <p className="text-muted-foreground text-xs">Your sacred space</p>
+            </div>
+          </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => {
+              setEditForm({ ...user });
+              setEditOpen(true);
+            }}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            title="Edit account"
+          >
+            <Edit2 className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Account Card */}
+        <motion.div
+          className="card-celestial rounded-2xl p-5 mb-6"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-14 h-14 rounded-full bg-gold/20 border-2 border-gold flex items-center justify-center glow-gold-sm">
+              <User className="w-7 h-7 text-gold" />
+            </div>
+            <div>
+              <h2 className="font-display text-xl font-bold text-foreground">
+                {user.firstName} {user.lastName}
+              </h2>
+              <p
+                className={`text-sm font-semibold ${isLeader(user.firstName, user.lastName) ? "text-gold" : "text-muted-foreground"}`}
+              >
+                {isLeader(user.firstName, user.lastName) ? "Leader" : "Member"}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {[
+              { label: "Date of Birth", value: user.dob },
+              { label: "Phone", value: user.phone },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-muted-foreground text-xs mb-1">{label}</p>
+                <p className="text-foreground font-medium truncate">{value}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Feature Boxes */}
+        <div className="space-y-3">
+          {featureBoxes.map(({ screen, icon: Icon, label, desc }, i) => (
+            <motion.button
+              key={screen}
+              onClick={() => onNavigate(screen)}
+              className="w-full card-celestial rounded-2xl p-4 flex items-center gap-4 hover:border-gold/40 transition-all duration-200 hover:glow-gold-sm text-left"
+              initial={{ opacity: 0, x: -15 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 + i * 0.08 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+            >
+              <div className="relative w-11 h-11 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center flex-shrink-0">
+                <Icon className="w-5 h-5 text-gold" />
+                {screen === "messages" && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+                {screen === "notifications" && notificationCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg">
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-semibold text-foreground">
+                  {label}
+                </p>
+                <p className="text-muted-foreground text-sm">{desc}</p>
+              </div>
+              <ArrowLeft className="w-4 h-4 text-gold/50 rotate-180 flex-shrink-0" />
+            </motion.button>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="text-center text-muted-foreground text-xs mt-8">
+          © {new Date().getFullYear()}. Built with love using{" "}
+          <a
+            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-gold/70 hover:text-gold transition-colors"
+          >
+            caffeine.ai
+          </a>
+        </div>
+      </div>
+
+      {/* Scroll to top button */}
+      <button
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className="fixed bottom-5 right-4 z-50 w-11 h-11 rounded-full bg-card border border-gold/40 flex items-center justify-center shadow-lg hover:border-gold transition-all hover:bg-gold/10"
+        title="Scroll to top"
+      >
+        <ArrowUp className="w-5 h-5 text-gold" />
+      </button>
+
+      {/* Edit Account Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Edit Account
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {(["firstName", "lastName", "dob", "password"] as const).map(
+              (key) => (
+                <div key={key}>
+                  <Label className="text-muted-foreground text-sm capitalize">
+                    {key === "dob"
+                      ? "Date of Birth"
+                      : key === "firstName"
+                        ? "First Name"
+                        : key === "lastName"
+                          ? "Last Name"
+                          : "Password"}
+                  </Label>
+                  <Input
+                    type={
+                      key === "password"
+                        ? "password"
+                        : key === "dob"
+                          ? "date"
+                          : "text"
+                    }
+                    value={editForm[key]}
+                    onChange={(e) =>
+                      setEditForm((p) => ({ ...p, [key]: e.target.value }))
+                    }
+                    className="bg-input border-border mt-1"
+                  />
+                </div>
+              ),
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !actor}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Sub-page Header ───────────────────────────────────────────────────────────
+
+function SubPageHeader({
+  title,
+  onBack,
+}: {
+  title: string;
+  onBack: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+      <h1 className="font-display text-xl font-bold text-gold">{title}</h1>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={onBack}
+        className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+        title="Back"
+      >
+        <ArrowLeft className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}
+
+// ─── Screen 7: Messages ────────────────────────────────────────────────────────
+
+function MessagesScreen({
+  user,
+  onBack,
+}: {
+  user: UserData;
+  onBack: () => void;
+}) {
+  const actor = useBackendActor();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const loadMessages = useCallback(async () => {
+    if (!actor) return;
+    try {
+      const msgs = await actor.getAllMessages();
+      setMessages(msgs);
+      // Scroll after state update
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 50);
+    } catch {
+      toast.error("Failed to load messages");
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !actor) return;
+    setSending(true);
+    try {
+      await actor.sendMessage(user.firstName, input.trim());
+      setInput("");
+      await loadMessages();
+    } catch {
+      toast.error("Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatTime = (ts: bigint) => {
+    const ms = Number(ts) / 1_000_000;
+    return new Date(ms).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg flex flex-col overflow-hidden">
+      <StarsBackground />
+      <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
+        <SubPageHeader title="Chat with Friends" onBack={onBack} />
+
+        <ScrollArea className="flex-1 mb-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 text-gold animate-spin" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-16">
+              <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">
+                No messages yet. Say hello!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 py-2 pr-2">
+              {messages.map((msg, i) => {
+                const isOwn = msg.sender === user.firstName;
+                const msgKey = `${msg.sender}-${String(msg.timestamp)}-${i}`;
+                return (
+                  <motion.div
+                    key={msgKey}
+                    className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                  >
+                    {!isOwn && (
+                      <span className="text-gold text-xs font-medium mb-1 ml-1">
+                        {msg.sender}
+                      </span>
+                    )}
+                    <div
+                      className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                        isOwn
+                          ? "bg-gold text-deep-space rounded-tr-sm"
+                          : "card-celestial text-foreground rounded-tl-sm"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                    <span className="text-muted-foreground text-xs mt-1 mx-1">
+                      {formatTime(msg.timestamp)}
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </ScrollArea>
+
+        <div className="flex gap-2 pb-6">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Type a message..."
+            className="flex-1 bg-input border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 focus:border-gold"
+          />
+          <Button
+            onClick={handleSend}
+            disabled={sending || !input.trim() || !actor}
+            className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0 flex-shrink-0"
+          >
+            {sending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 8: Star of the Month ──────────────────────────────────────────────
+
+function StarsScreen({ onBack }: { onBack: () => void }) {
+  const actor = useBackendActor();
+  const [stars, setStars] = useState<StarOfTheMonth[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    month: "",
+    name: "",
+    position: "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!actor) return;
+    setLoading(true);
+    try {
+      setStars(await actor.getAllStars());
+    } catch {
+      toast.error("Failed to load stars");
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleSave = async () => {
+    if (!editForm.month || !editForm.name || !editForm.position) {
+      toast.error("All fields required");
+      return;
+    }
+    if (!actor) return;
+    setSaving(true);
+    try {
+      await actor.addOrUpdateStar(
+        editForm.month,
+        editForm.name,
+        editForm.position,
+      );
+      await load();
+      setEditOpen(false);
+      toast.success("Star updated!");
+    } catch {
+      toast.error("Failed to save. Admin access required.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (month: string) => {
+    if (!actor) return;
+    try {
+      await actor.deleteStar(month);
+      await load();
+      toast.success("Deleted");
+    } catch {
+      toast.error("Failed to delete. Admin access required.");
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Star of the Month" onBack={onBack} />
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : stars.length === 0 ? (
+          <div className="text-center py-16">
+            <Star className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No stars yet</p>
+          </div>
+        ) : (
+          <div className="card-celestial rounded-2xl overflow-hidden mb-6">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                    Month
+                  </th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                    Name
+                  </th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">
+                    Position
+                  </th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {stars.map((s) => (
+                  <tr
+                    key={s.month}
+                    className="border-b border-border/50 last:border-0"
+                  >
+                    <td className="px-4 py-3 text-gold font-medium">
+                      {s.month}
+                    </td>
+                    <td className="px-4 py-3 text-foreground">{s.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {s.position}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleDelete(s.month)}
+                        className="w-7 h-7 text-destructive hover:bg-destructive/10 rounded-lg"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <Button
+          onClick={() => {
+            setEditForm({ month: "", name: "", position: "" });
+            setEditOpen(true);
+          }}
+          className="bg-gold text-deep-space hover:bg-accent rounded-xl"
+        >
+          <Plus className="w-4 h-4 mr-2" /> Add / Update Star
+        </Button>
+      </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add / Update Star
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {(["month", "name", "position"] as const).map((key) => (
+              <div key={key}>
+                <Label className="text-muted-foreground text-sm capitalize">
+                  {key}
+                </Label>
+                <Input
+                  value={editForm[key]}
+                  onChange={(e) =>
+                    setEditForm((p) => ({ ...p, [key]: e.target.value }))
+                  }
+                  placeholder={
+                    key === "month"
+                      ? "e.g. January"
+                      : key === "position"
+                        ? "e.g. 1st"
+                        : "Full name"
+                  }
+                  className="bg-input border-border mt-1"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Screen 9: Birthday Dates ──────────────────────────────────────────────────
+
+function BirthdaysScreen({ onBack }: { onBack: () => void }) {
+  const actor = useBackendActor();
+  const [birthdays, setBirthdays] = useState<Birthday[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", date: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!actor) return;
+    setLoading(true);
+    try {
+      setBirthdays(await actor.getAllBirthdays());
+    } catch {
+      toast.error("Failed to load birthdays");
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleSave = async () => {
+    if (!editForm.name || !editForm.date) {
+      toast.error("All fields required");
+      return;
+    }
+    if (!actor) return;
+    setSaving(true);
+    try {
+      await actor.addOrUpdateBirthday(editForm.name, editForm.date);
+      await load();
+      setEditOpen(false);
+      toast.success("Birthday saved!");
+    } catch {
+      toast.error("Failed to save. Admin access required.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (name: string) => {
+    if (!actor) return;
+    try {
+      await actor.deleteBirthday(name);
+      await load();
+      toast.success("Deleted");
+    } catch {
+      toast.error("Failed to delete. Admin access required.");
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                setEditForm({ name: "", date: "" });
+                setEditOpen(true);
+              }}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+              title="Add birthday"
+            >
+              <Edit2 className="w-4 h-4" />
+            </Button>
+            <h1 className="font-display text-xl font-bold text-gold">
+              Birthday Dates
+            </h1>
+          </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onBack}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : birthdays.length === 0 ? (
+          <div className="text-center py-16">
+            <Cake className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No birthdays added yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {birthdays.map((b, i) => (
+              <motion.div
+                key={b.name}
+                className="card-celestial rounded-2xl px-4 py-3 flex items-center justify-between"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <div>
+                  <p className="font-display font-semibold text-foreground">
+                    {b.name}
+                  </p>
+                  <p className="text-gold text-sm">{b.date}</p>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleDelete(b.name)}
+                  className="w-8 h-8 text-destructive hover:bg-destructive/10 rounded-lg"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add / Update Birthday
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Name</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, name: e.target.value }))
+                }
+                placeholder="Full name"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">Date</Label>
+              <Input
+                type="date"
+                value={editForm.date}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, date: e.target.value }))
+                }
+                className="bg-input border-border mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Screen 10: Meet ───────────────────────────────────────────────────────────
+
+function MeetScreen({ onBack }: { onBack: () => void }) {
+  const actor = useBackendActor();
+  const [links, setLinks] = useState<MeetLink[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", url: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!actor) return;
+    setLoading(true);
+    try {
+      setLinks(await actor.getAllMeetLinks());
+    } catch {
+      toast.error("Failed to load meet links");
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleSave = async () => {
+    if (!editForm.title || !editForm.url) {
+      toast.error("All fields required");
+      return;
+    }
+    if (!actor) return;
+    setSaving(true);
+    try {
+      await actor.addOrUpdateMeetLink(editForm.title, editForm.url);
+      await load();
+      setEditOpen(false);
+      toast.success("Meet link saved!");
+    } catch {
+      toast.error("Failed to save. Admin access required.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (title: string) => {
+    if (!actor) return;
+    try {
+      await actor.deleteMeetLink(title);
+      await load();
+      toast.success("Deleted");
+    } catch {
+      toast.error("Failed to delete. Admin access required.");
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">Meet</h1>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEditForm({ title: "", url: "" });
+                setEditOpen(true);
+              }}
+              className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+            >
+              <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Edit
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : links.length === 0 ? (
+          <div className="text-center py-16">
+            <Video className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No meeting links yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {links.map((l, i) => (
+              <motion.div
+                key={l.title}
+                className="card-celestial rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-display font-semibold text-foreground truncate">
+                    {l.title}
+                  </p>
+                  <a
+                    href={l.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-gold text-sm hover:underline flex items-center gap-1 truncate"
+                  >
+                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{l.url}</span>
+                  </a>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleDelete(l.title)}
+                  className="w-8 h-8 text-destructive hover:bg-destructive/10 rounded-lg flex-shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add / Update Meeting Link
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Title</Label>
+              <Input
+                value={editForm.title}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, title: e.target.value }))
+                }
+                placeholder="e.g. Team Standup"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">URL</Label>
+              <Input
+                value={editForm.url}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, url: e.target.value }))
+                }
+                placeholder="https://meet.google.com/..."
+                className="bg-input border-border mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Screen 11: Important Messages ────────────────────────────────────────────
+
+function ImportantMessagesScreen({
+  user,
+  onBack,
+}: {
+  user: UserData;
+  onBack: () => void;
+}) {
+  const actor = useBackendActor();
+  const [msgs, setMsgs] = useState<ImportantMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editMsg, setEditMsg] = useState<ImportantMessage | null>(null);
+  const [formContent, setFormContent] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const isAllowed = isLeader(user.firstName, user.lastName);
+
+  const load = useCallback(async () => {
+    if (!actor) return;
+    setLoading(true);
+    try {
+      const all = await actor.getAllImportantMessages();
+      setMsgs(all.filter((m) => !m.dismissed));
+    } catch {
+      toast.error("Failed to load messages");
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleDismiss = async (id: bigint) => {
+    if (!actor) return;
+    try {
+      await actor.dismissImportantMessage(id);
+      setMsgs((p) => p.filter((m) => m.id !== id));
+      toast.success("Message dismissed");
+    } catch {
+      toast.error("Failed to dismiss");
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!formContent.trim() || !actor) return;
+    setSaving(true);
+    try {
+      await actor.addImportantMessage(formContent.trim(), user.firstName);
+      await load();
+      setAddOpen(false);
+      setFormContent("");
+      toast.success("Message added!");
+    } catch {
+      toast.error("Failed to add message. Only Aaron or Nevveen can post.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editMsg || !formContent.trim() || !actor) return;
+    setSaving(true);
+    try {
+      await actor.updateImportantMessage(
+        editMsg.id,
+        formContent.trim(),
+        user.firstName,
+      );
+      await load();
+      setEditMsg(null);
+      setFormContent("");
+      toast.success("Message updated!");
+    } catch {
+      toast.error("Failed to update");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openEdit = (msg: ImportantMessage) => {
+    setEditMsg(msg);
+    setFormContent(msg.content);
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Important Messages" onBack={onBack} />
+
+        {isAllowed && (
+          <div className="mb-4">
+            <Button
+              onClick={() => {
+                setAddOpen(true);
+                setFormContent("");
+              }}
+              className="bg-gold text-deep-space hover:bg-accent rounded-xl text-sm"
+            >
+              <Plus className="w-4 h-4 mr-2" /> Add Message
+            </Button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : msgs.length === 0 ? (
+          <div className="text-center py-16">
+            <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No important messages</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {msgs.map((msg, i) => (
+              <motion.div
+                key={String(msg.id)}
+                className="card-celestial rounded-2xl px-4 py-4"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <span className="text-gold text-xs font-medium">
+                    From: {msg.author}
+                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {isAllowed && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEdit(msg)}
+                        className="w-7 h-7 text-muted-foreground hover:text-gold hover:bg-gold/10 rounded-lg"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDismiss(msg.id)}
+                      className="w-7 h-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                      title="Dismiss"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-foreground text-sm leading-relaxed">
+                  {msg.content}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add Message Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Important Message
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-muted-foreground text-sm">Message</Label>
+            <textarea
+              value={formContent}
+              onChange={(e) => setFormContent(e.target.value)}
+              placeholder="Enter important message..."
+              rows={4}
+              className="w-full mt-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-gold resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              disabled={saving}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Message Dialog */}
+      <Dialog
+        open={!!editMsg}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditMsg(null);
+            setFormContent("");
+          }
+        }}
+      >
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Edit Message
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-muted-foreground text-sm">Message</Label>
+            <textarea
+              value={formContent}
+              onChange={(e) => setFormContent(e.target.value)}
+              rows={4}
+              className="w-full mt-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-gold resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setEditMsg(null);
+                setFormContent("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEdit}
+              disabled={saving}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Your Ideas Screen ─────────────────────────────────────────────────────────
+function YourIdeasScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const [ideas, setIdeas] = useState<
+    Array<{ id: number; text: string; author: string }>
+  >([]);
+  const [showInput, setShowInput] = useState(false);
+  const [input, setInput] = useState("");
+
+  const handleAdd = () => {
+    if (!input.trim()) return;
+    setIdeas((p) => [
+      ...p,
+      { id: Date.now(), text: input.trim(), author: user.firstName || "You" },
+    ]);
+    setInput("");
+    setShowInput(false);
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Your Ideas" onBack={onBack} />
+        <div className="space-y-3 mb-4">
+          {ideas.length === 0 && (
+            <div className="text-center py-16">
+              <Lightbulb className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No ideas yet. Share one!</p>
+            </div>
+          )}
+          {ideas.map((idea) => (
+            <div key={idea.id} className="card-celestial rounded-2xl px-4 py-3">
+              <p className="text-gold text-xs font-medium mb-1">
+                {idea.author}
+              </p>
+              <p className="text-foreground text-sm">{idea.text}</p>
+            </div>
+          ))}
+        </div>
+        {showInput ? (
+          <div className="flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Your idea..."
+              className="flex-1 bg-input border-border text-foreground rounded-xl h-12"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd();
+              }}
+            />
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            onClick={() => setShowInput(true)}
+            className="w-full h-12 bg-gold/20 border border-gold/40 text-gold hover:bg-gold/30 rounded-xl text-2xl font-bold"
+          >
+            +
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Photos Screen ─────────────────────────────────────────────────────────────
+function PhotosScreen({ onBack }: { onBack: () => void }) {
+  const [photos, setPhotos] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const urls = files.map((f) => URL.createObjectURL(f));
+    setPhotos((p) => [...p, ...urls]);
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Photos" onBack={onBack} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleFile}
+        />
+        {photos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="w-24 h-24 rounded-full bg-gold/20 border-2 border-gold/50 flex items-center justify-center text-gold text-5xl hover:bg-gold/30 transition-all"
+            >
+              +
+            </button>
+            <p className="text-muted-foreground mt-4">Tap + to add photos</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {photos.map((url, i) => (
+                <img
+                  key={url}
+                  src={url}
+                  className="w-full aspect-square object-cover rounded-xl"
+                  alt={`photo-${i}`}
+                />
+              ))}
+            </div>
+            <Button
+              onClick={() => fileRef.current?.click()}
+              className="w-full bg-gold text-deep-space hover:bg-accent rounded-xl"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add More
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── WhatsApp Screen ───────────────────────────────────────────────────────────
+function WhatsAppScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="WhatsApp Group" onBack={onBack} />
+        <div className="flex flex-col items-center gap-6 py-8">
+          <a
+            href="https://chat.whatsapp.com/EsAQ1eklgIrHfv6kHxkKis"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full"
+          >
+            <Button className="w-full h-14 bg-green-600 hover:bg-green-700 text-white rounded-xl text-base font-semibold flex items-center justify-center gap-2">
+              <MessageCircle className="w-5 h-5" /> Join WhatsApp Group
+            </Button>
+          </a>
+          <img
+            src="/assets/uploads/Screenshot_2026-03-01-09-33-49-19_40deb401b9ffe8e1df2f1cc5ba480b12-1.jpg"
+            alt="WhatsApp QR Code"
+            className="w-64 h-64 object-contain rounded-2xl border border-border"
+          />
+          <p className="text-muted-foreground text-sm text-center">
+            Scan the QR code or tap the button above to join
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── YouTube Screen ────────────────────────────────────────────────────────────
+function YouTubeScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="YouTube Channel" onBack={onBack} />
+        <div className="flex flex-col items-center gap-6 py-8">
+          <Youtube className="w-20 h-20 text-red-500" />
+          <h2 className="font-display text-2xl font-bold text-gold text-center">
+            Our Heaven by Kids
+          </h2>
+          <a
+            href="https://www.youtube.com/@ourHeavenBykids"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full"
+          >
+            <Button className="w-full h-14 bg-red-600 hover:bg-red-700 text-white rounded-xl text-base font-semibold flex items-center justify-center gap-2">
+              <Youtube className="w-5 h-5" /> Open YouTube Channel
+            </Button>
+          </a>
+          <p className="text-muted-foreground text-sm text-center">
+            Tap the button above to visit our YouTube channel
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Calendar Screen ───────────────────────────────────────────────────────────
+function CalendarScreen({ onBack }: { onBack: () => void }) {
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [events, setEvents] = useState<
+    Array<{ id: number; title: string; date: string }>
+  >([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", date: "" });
+
+  const handleAdd = () => {
+    if (!form.title || !form.date) return;
+    setEvents((p) => [
+      ...p,
+      { id: Date.now(), title: form.title, date: form.date },
+    ]);
+    setForm({ title: "", date: "" });
+    setAddOpen(false);
+    toast.success("Date added!");
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">
+            Dates & Calendar
+          </h1>
+          <div className="flex items-center gap-2">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setAddOpen(true)}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="card-celestial rounded-2xl p-4 mb-4 flex justify-center">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={setDate}
+            className="text-foreground"
+          />
+        </div>
+        {events.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-gold font-display font-semibold mb-2">
+              Important Dates
+            </h3>
+            {events.map((ev) => (
+              <div
+                key={ev.id}
+                className="card-celestial rounded-xl px-4 py-3 flex justify-between"
+              >
+                <p className="text-foreground font-medium">{ev.title}</p>
+                <p className="text-gold text-sm">{ev.date}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Important Date
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Title</Label>
+              <Input
+                value={form.title}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, title: e.target.value }))
+                }
+                placeholder="e.g. Final Exam"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">Date</Label>
+              <Input
+                type="date"
+                value={form.date}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, date: e.target.value }))
+                }
+                className="bg-input border-border mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── School Works Screen ───────────────────────────────────────────────────────
+function SchoolWorksScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="School Works" onBack={onBack} />
+        <div className="flex flex-col items-center gap-6 py-8">
+          <GraduationCap className="w-20 h-20 text-gold" />
+          <h2 className="font-display text-xl font-bold text-gold text-center">
+            Textbooks & Study Materials
+          </h2>
+          <a
+            href="https://textbooksall.blogspot.com/2024/05/std-1-3-5-7-9-2024-24-textbooks-for.html?m=1"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full"
+          >
+            <Button className="w-full h-14 bg-gold text-deep-space hover:bg-accent rounded-xl text-base font-semibold flex items-center justify-center gap-2">
+              <ExternalLink className="w-5 h-5" /> Open Textbooks Website
+            </Button>
+          </a>
+          <p className="text-muted-foreground text-sm text-center">
+            Tap the button above to access STD 1, 3, 5, 7, 9 textbooks
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Rules Screen ──────────────────────────────────────────────────────────────
+function RulesScreen({ onBack }: { onBack: () => void }) {
+  const rules = [
+    "NO BAD WORDS",
+    "NO SPAMMING",
+    "BE FRIENDLY TO OTHERS",
+    "NO UNWANTED MESSAGES",
+    "DO NOT PLAY STATUE GAME",
+    "THIS GROUP CAN TALK ONLY GAMES",
+    "DO NOT HURT ANYONE",
+    "QUIZ ONLY ABOUT GAMES THINGS",
+    "DO NOT MAKE FUN OF OTHERS IF THEY ARE IN ANY PROBLEM",
+    "IF SOMEONE NEED NOTES OR INFO SEND THEM THE ANSWER",
+  ];
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Rules" onBack={onBack} />
+        <div className="card-celestial rounded-2xl p-5">
+          <h2 className="font-display text-xl font-bold text-gold mb-4 text-center">
+            RULES OF THIS GROUP
+          </h2>
+          <div className="space-y-3">
+            {rules.map((rule, i) => (
+              <div key={rule} className="flex items-start gap-3">
+                <span className="text-gold font-bold text-sm flex-shrink-0">
+                  {i + 1})
+                </span>
+                <p className="text-foreground text-sm">{rule}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 pt-4 border-t border-border">
+            <p className="text-muted-foreground text-xs italic text-center">
+              Note: Breaking these rules can result in ban. 1 MONTH LEFT THE 2
+              GROUPS
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Attendance Screen ─────────────────────────────────────────────────────────
+function AttendanceScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const isAdmin = isLeader(user.firstName, user.lastName);
+  const [members, setMembers] = useState<
+    Array<{
+      id: number;
+      name: string;
+      status: "Present" | "Leave";
+      level: string;
+    }>
+  >([
+    { id: 1, name: "Aaron", status: "Present", level: "Admin" },
+    { id: 2, name: "Nevveen", status: "Present", level: "Admin" },
+  ]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  const toggleStatus = (id: number) => {
+    if (!isAdmin) return;
+    setMembers((p) =>
+      p.map((m) =>
+        m.id === id
+          ? { ...m, status: m.status === "Present" ? "Leave" : "Present" }
+          : m,
+      ),
+    );
+  };
+
+  const handleAdd = () => {
+    if (!newName.trim()) return;
+    setMembers((p) => [
+      ...p,
+      {
+        id: Date.now(),
+        name: newName.trim(),
+        status: "Present",
+        level: "Member",
+      },
+    ]);
+    setNewName("");
+    setAddOpen(false);
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Attendance & Level" onBack={onBack} />
+        {isAdmin && (
+          <div className="mb-4">
+            <Button
+              onClick={() => setAddOpen(true)}
+              className="bg-gold text-deep-space hover:bg-accent rounded-xl text-sm"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Member
+            </Button>
+          </div>
+        )}
+        <div className="card-celestial rounded-2xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left px-4 py-3 text-muted-foreground">
+                  Name
+                </th>
+                <th className="text-left px-4 py-3 text-muted-foreground">
+                  Status
+                </th>
+                <th className="text-left px-4 py-3 text-muted-foreground">
+                  Level
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr
+                  key={m.id}
+                  className="border-b border-border/50 last:border-0"
+                >
+                  <td className="px-4 py-3 text-foreground font-medium">
+                    {m.name}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleStatus(m.id)}
+                      disabled={!isAdmin}
+                      className={`px-2 py-1 rounded-lg text-xs font-medium ${m.status === "Present" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"} ${isAdmin ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+                    >
+                      {m.status}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{m.level}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Member
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-muted-foreground text-sm">Name</Label>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Member name"
+              className="bg-input border-border mt-1"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Prayer Screen ─────────────────────────────────────────────────────────────
+function PrayerScreen({ onBack }: { onBack: () => void }) {
+  const [prayer, setPrayer] = useState(
+    "Lord, bless our group with love, peace, and wisdom. Amen.",
+  );
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(prayer);
+
+  const handleSave = () => {
+    setPrayer(draft);
+    setEditing(false);
+    toast.success("Prayer updated!");
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setDraft(prayer);
+                setEditing(!editing);
+              }}
+              className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+            >
+              <Edit2 className="w-3.5 h-3.5 mr-1.5" />
+              {editing ? "Cancel" : "Edit"}
+            </Button>
+          </div>
+          <h1 className="font-display text-xl font-bold text-gold">Prayer</h1>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onBack}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="card-celestial rounded-2xl p-6">
+          <Heart className="w-10 h-10 text-gold mx-auto mb-4" />
+          {editing ? (
+            <>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={6}
+                className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-gold resize-none mb-4"
+              />
+              <Button
+                onClick={handleSave}
+                className="w-full bg-gold text-deep-space hover:bg-accent rounded-xl"
+              >
+                Save Prayer
+              </Button>
+            </>
+          ) : (
+            <p className="text-foreground text-base leading-relaxed text-center italic">
+              {prayer}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Group Chat Screen ─────────────────────────────────────────────────────────
+function GroupChatScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const actor = useBackendActor();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const loadMessages = useCallback(async () => {
+    if (!actor) return;
+    try {
+      const msgs = await actor.getAllMessages();
+      setMessages(msgs);
+      setTimeout(() => {
+        if (scrollRef.current)
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 50);
+    } catch {
+      toast.error("Failed to load messages");
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !actor) return;
+    setSending(true);
+    try {
+      await actor.sendMessage(user.firstName, input.trim());
+      setInput("");
+      await loadMessages();
+    } catch {
+      toast.error("Failed to send");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatTime = (ts: bigint) =>
+    new Date(Number(ts) / 1_000_000).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  return (
+    <div className="relative min-h-screen celestial-bg flex flex-col overflow-hidden">
+      <StarsBackground />
+      <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
+        <SubPageHeader title="Group Chat" onBack={onBack} />
+        <ScrollArea className="flex-1 mb-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 text-gold animate-spin" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-16">
+              <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">
+                No messages yet. Say hello!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 py-2 pr-2">
+              {messages.map((msg, i) => {
+                const isOwn = msg.sender === user.firstName;
+                return (
+                  <motion.div
+                    key={`${msg.sender}-${String(msg.timestamp)}-${i}`}
+                    className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                  >
+                    {!isOwn && (
+                      <span className="text-gold text-xs font-medium mb-1 ml-1">
+                        {msg.sender}
+                      </span>
+                    )}
+                    <div
+                      className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${isOwn ? "bg-gold text-deep-space rounded-tr-sm" : "card-celestial text-foreground rounded-tl-sm"}`}
+                    >
+                      {msg.content}
+                    </div>
+                    <span className="text-muted-foreground text-xs mt-1 mx-1">
+                      {formatTime(msg.timestamp)}
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </ScrollArea>
+        <div className="flex gap-2 pb-6">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Type a message..."
+            className="flex-1 bg-input border-border text-foreground rounded-xl h-12 focus:border-gold"
+          />
+          <Button
+            onClick={handleSend}
+            disabled={sending || !input.trim() || !actor}
+            className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0 flex-shrink-0"
+          >
+            {sending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Home Works Screen ─────────────────────────────────────────────────────────
+function HomeWorksScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const isAdmin = isLeader(user.firstName, user.lastName);
+  const [works, setWorks] = useState<
+    Array<{ id: number; title: string; desc: string; due: string }>
+  >([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", desc: "", due: "" });
+
+  const handleAdd = () => {
+    if (!form.title) return;
+    setWorks((p) => [...p, { id: Date.now(), ...form }]);
+    setForm({ title: "", desc: "", due: "" });
+    setAddOpen(false);
+    toast.success("Homework added!");
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Home Works" onBack={onBack} />
+        {isAdmin && (
+          <div className="mb-4">
+            <Button
+              onClick={() => setAddOpen(true)}
+              className="bg-gold text-deep-space hover:bg-accent rounded-xl text-sm"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Homework
+            </Button>
+          </div>
+        )}
+        {works.length === 0 ? (
+          <div className="text-center py-16">
+            <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No homework assignments yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {works.map((w) => (
+              <div key={w.id} className="card-celestial rounded-2xl px-4 py-4">
+                <div className="flex justify-between items-start mb-1">
+                  <p className="font-display font-semibold text-foreground">
+                    {w.title}
+                  </p>
+                  {w.due && <span className="text-gold text-xs">{w.due}</span>}
+                </div>
+                {w.desc && (
+                  <p className="text-muted-foreground text-sm">{w.desc}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Homework
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Title</Label>
+              <Input
+                value={form.title}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, title: e.target.value }))
+                }
+                placeholder="e.g. Math Chapter 5"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                Description
+              </Label>
+              <Input
+                value={form.desc}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, desc: e.target.value }))
+                }
+                placeholder="Details..."
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">Due Date</Label>
+              <Input
+                type="date"
+                value={form.due}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, due: e.target.value }))
+                }
+                className="bg-input border-border mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Notifications Screen ──────────────────────────────────────────────────────
+function NotificationsScreen({
+  notifications,
+  onMarkAllRead,
+  onBack,
+}: {
+  notifications: NotificationItem[];
+  onMarkAllRead: () => void;
+  onBack: () => void;
+}) {
+  const formatTime = (ts: number) => {
+    const now = Date.now();
+    const diff = now - ts;
+    if (diff < 60_000) return "Just now";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+    return new Date(ts).toLocaleDateString();
+  };
+
+  const unread = notifications.filter((n) => !n.read).length;
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">
+            Notifications
+          </h1>
+          <div className="flex items-center gap-2">
+            {unread > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onMarkAllRead}
+                className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+              >
+                Mark all read
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {notifications.length === 0 ? (
+          <div className="text-center py-20">
+            <Bell className="w-14 h-14 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground text-lg font-display">
+              No notifications yet
+            </p>
+            <p className="text-muted-foreground text-sm mt-2">
+              Messages from all boxes will appear here
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {notifications.map((n, i) => (
+              <motion.div
+                key={n.id}
+                className={`rounded-2xl px-4 py-3 flex items-start gap-3 ${n.read ? "card-celestial opacity-70" : "card-celestial border border-gold/40"}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+              >
+                <div className="w-9 h-9 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Bell className="w-4 h-4 text-gold" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className="text-gold text-xs font-semibold uppercase tracking-wide truncate">
+                      {n.boxName}
+                    </span>
+                    <span className="text-muted-foreground text-xs flex-shrink-0">
+                      {formatTime(n.timestamp)}
+                    </span>
+                  </div>
+                  <p className="text-foreground text-sm leading-relaxed line-clamp-2">
+                    {n.message}
+                  </p>
+                </div>
+                {!n.read && (
+                  <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-2" />
+                )}
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Root App ──────────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = "our-heaven-user";
+
+function loadStoredUser(): UserData | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as UserData;
+    if (parsed.firstName && parsed.phone) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveUser(u: UserData) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+  } catch {
+    /* ignore */
+  }
+}
+
+function AppInner() {
+  const { actor } = useActor();
+
+  const [screen, setScreen] = useState<Screen>(() => {
+    const stored = loadStoredUser();
+    return stored ? "home" : "splash";
+  });
+  const [userData, setUserData] = useState<UserData>(() => {
+    return (
+      loadStoredUser() ?? {
+        firstName: "",
+        lastName: "",
+        dob: "",
+        phone: "",
+        password: "",
+      }
+    );
+  });
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const lastSeenCountRef = useRef(0);
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const lastNotifMsgCountRef = useRef(0);
+  const lastNotifImportantCountRef = useRef(0);
+
+  // Poll for new messages to show badge on Messages box
+  useEffect(() => {
+    if (!actor || screen !== "home") return;
+    const checkMessages = async () => {
+      try {
+        const msgs = await actor.getAllMessages();
+        const total = msgs.length;
+        if (total > lastSeenCountRef.current) {
+          setUnreadMessages(total - lastSeenCountRef.current);
+        }
+      } catch {
+        // silent
+      }
+    };
+    checkMessages();
+    const interval = setInterval(checkMessages, 5000);
+    return () => clearInterval(interval);
+  }, [actor, screen]);
+
+  // Poll for new notifications (messages + important messages)
+  useEffect(() => {
+    if (!actor) return;
+    const checkNotifs = async () => {
+      try {
+        const msgs = await actor.getAllMessages();
+        if (msgs.length > lastNotifMsgCountRef.current) {
+          const newMsgs = msgs.slice(lastNotifMsgCountRef.current);
+          const newNotifs: NotificationItem[] = newMsgs.map((m) => ({
+            id: `msg-${String(m.timestamp)}-${m.sender}`,
+            boxName: "Messages",
+            message: `${m.sender}: ${m.content}`,
+            timestamp: Number(m.timestamp) / 1_000_000,
+            read: false,
+          }));
+          setNotifications((prev) => [...newNotifs, ...prev].slice(0, 100));
+          lastNotifMsgCountRef.current = msgs.length;
+        }
+      } catch {
+        // silent
+      }
+      try {
+        const important = await actor.getAllImportantMessages();
+        const active = important.filter((m) => !m.dismissed);
+        if (active.length > lastNotifImportantCountRef.current) {
+          const newItems = active.slice(lastNotifImportantCountRef.current);
+          const newNotifs: NotificationItem[] = newItems.map((m) => ({
+            id: `imp-${String(m.id)}`,
+            boxName: "Important Messages",
+            message: `${m.author}: ${m.content}`,
+            timestamp: Date.now(),
+            read: false,
+          }));
+          setNotifications((prev) => [...newNotifs, ...prev].slice(0, 100));
+          lastNotifImportantCountRef.current = active.length;
+        }
+      } catch {
+        // silent
+      }
+    };
+    checkNotifs();
+    const interval = setInterval(checkNotifs, 6000);
+    return () => clearInterval(interval);
+  }, [actor]);
+
+  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+
+  const markAllNotifsRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
+  const updateUser = useCallback((u: UserData) => {
+    setUserData(u);
+    saveUser(u);
+  }, []);
+
+  const navigate = useCallback(
+    (s: Screen) => {
+      // When navigating to messages, clear the badge and record current count
+      if (s === "messages") {
+        setUnreadMessages(0);
+        if (actor) {
+          actor
+            .getAllMessages()
+            .then((msgs) => {
+              lastSeenCountRef.current = msgs.length;
+            })
+            .catch(() => {});
+        }
+      }
+      // Mark all notifications read when opening notifications screen
+      if (s === "notifications") {
+        markAllNotifsRead();
+      }
+      setScreen(s);
+    },
+    [actor, markAllNotifsRead],
+  );
+
+  return (
+    <ActorContext.Provider value={actor}>
+      <div className="min-h-screen bg-background text-foreground font-sans">
+        <Toaster richColors position="top-center" />
+        <MusicPlayer />
+
+        <AnimatePresence mode="wait">
+          {screen === "splash" && (
+            <motion.div
+              key="splash"
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <SplashScreen onComplete={() => navigate("welcome")} />
+            </motion.div>
+          )}
+
+          {screen === "welcome" && (
+            <motion.div
+              key="welcome"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <WelcomeScreen onCreateAccount={() => navigate("register")} />
+            </motion.div>
+          )}
+
+          {screen === "register" && (
+            <motion.div
+              key="register"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.35 }}
+            >
+              <RegistrationForm
+                onNext={(data) => {
+                  updateUser(data);
+                  navigate("account-ready");
+                }}
+              />
+            </motion.div>
+          )}
+
+          {screen === "account-ready" && (
+            <motion.div
+              key="account-ready"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <AccountReadyScreen
+                firstName={userData.firstName}
+                onComplete={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+
+          {screen === "home" && (
+            <motion.div
+              key="home"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <HomeScreen
+                user={userData}
+                onNavigate={navigate}
+                onUpdateUser={updateUser}
+                unreadCount={unreadMessages}
+                notificationCount={unreadNotifCount}
+              />
+            </motion.div>
+          )}
+
+          {screen === "messages" && (
+            <motion.div
+              key="messages"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <MessagesScreen user={userData} onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+
+          {screen === "stars" && (
+            <motion.div
+              key="stars"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <StarsScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+
+          {screen === "birthdays" && (
+            <motion.div
+              key="birthdays"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <BirthdaysScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+
+          {screen === "meet" && (
+            <motion.div
+              key="meet"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <MeetScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+
+          {screen === "important-messages" && (
+            <motion.div
+              key="important-messages"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ImportantMessagesScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "your-ideas" && (
+            <motion.div
+              key="your-ideas"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <YourIdeasScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "photos" && (
+            <motion.div
+              key="photos"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <PhotosScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "whatsapp" && (
+            <motion.div
+              key="whatsapp"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <WhatsAppScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "youtube" && (
+            <motion.div
+              key="youtube"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <YouTubeScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "calendar" && (
+            <motion.div
+              key="calendar"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CalendarScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "school-works" && (
+            <motion.div
+              key="school-works"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <SchoolWorksScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "rules" && (
+            <motion.div
+              key="rules"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <RulesScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "attendance" && (
+            <motion.div
+              key="attendance"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AttendanceScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "prayer" && (
+            <motion.div
+              key="prayer"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <PrayerScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "group-chat" && (
+            <motion.div
+              key="group-chat"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <GroupChatScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "home-works" && (
+            <motion.div
+              key="home-works"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <HomeWorksScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "notifications" && (
+            <motion.div
+              key="notifications"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <NotificationsScreen
+                notifications={notifications}
+                onMarkAllRead={markAllNotifsRead}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </ActorContext.Provider>
+  );
+}
+
+export default function App() {
+  return <AppInner />;
+}
