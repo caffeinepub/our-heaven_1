@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowUp,
   Bell,
@@ -1234,7 +1235,16 @@ function MessagesScreen({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showScrollUp, setShowScrollUp] = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setShowScrollUp(el.scrollTop > 100);
+    setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 100);
+  }, []);
 
   const loadMessages = useCallback(async () => {
     if (!actor) return;
@@ -1257,6 +1267,13 @@ function MessagesScreen({
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   const handleSend = async () => {
     if (!input.trim() || !actor) return;
@@ -1286,54 +1303,98 @@ function MessagesScreen({
       <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
         <SubPageHeader title="Chat with Friends" onBack={onBack} />
 
-        <ScrollArea className="flex-1 mb-4">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-8 h-8 text-gold animate-spin" />
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center py-16">
-              <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">
-                No messages yet. Say hello!
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3 py-2 pr-2">
-              {messages.map((msg, i) => {
-                const isOwn = msg.sender === user.firstName;
-                const msgKey = `${msg.sender}-${String(msg.timestamp)}-${i}`;
-                return (
-                  <motion.div
-                    key={msgKey}
-                    className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                  >
-                    {!isOwn && (
-                      <span className="text-gold text-xs font-medium mb-1 ml-1">
-                        {msg.sender}
-                      </span>
-                    )}
-                    <div
-                      className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                        isOwn
-                          ? "bg-gold text-deep-space rounded-tr-sm"
-                          : "card-celestial text-foreground rounded-tl-sm"
-                      }`}
+        <div className="relative flex-1 min-h-0">
+          <div ref={scrollRef} className="h-full overflow-y-auto mb-4">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 text-gold animate-spin" />
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center py-16">
+                <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">
+                  No messages yet. Say hello!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 py-2 pr-2">
+                {messages.map((msg, i) => {
+                  const isOwn = msg.sender === user.firstName;
+                  const msgKey = `${msg.sender}-${String(msg.timestamp)}-${i}`;
+                  return (
+                    <motion.div
+                      key={msgKey}
+                      className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
                     >
-                      {msg.content}
-                    </div>
-                    <span className="text-muted-foreground text-xs mt-1 mx-1">
-                      {formatTime(msg.timestamp)}
-                    </span>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
+                      {!isOwn && (
+                        <span className="text-gold text-xs font-medium mb-1 ml-1">
+                          {msg.sender}
+                        </span>
+                      )}
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                          isOwn
+                            ? "bg-gold text-deep-space rounded-tr-sm"
+                            : "card-celestial text-foreground rounded-tl-sm"
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                      <span className="text-muted-foreground text-xs mt-1 mx-1">
+                        {formatTime(msg.timestamp)}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Scroll Up Button */}
+          <AnimatePresence>
+            {showScrollUp && (
+              <motion.button
+                key="scroll-up-msgs"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+                onClick={() => {
+                  if (scrollRef.current) scrollRef.current.scrollTop = 0;
+                }}
+                aria-label="Scroll to top"
+                className="absolute bottom-24 right-4 w-9 h-9 rounded-full bg-gold text-deep-space flex items-center justify-center shadow-lg hover:bg-accent transition-colors z-20"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          {/* Scroll Down Button */}
+          <AnimatePresence>
+            {showScrollDown && (
+              <motion.button
+                key="scroll-down-msgs"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+                onClick={() => {
+                  if (scrollRef.current)
+                    scrollRef.current.scrollTop =
+                      scrollRef.current.scrollHeight;
+                }}
+                aria-label="Scroll to bottom"
+                className="absolute bottom-14 right-4 w-9 h-9 rounded-full bg-gold text-deep-space flex items-center justify-center shadow-lg hover:bg-accent transition-colors z-20"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
 
         <div className="flex gap-2 pb-6">
           <Input
@@ -2776,7 +2837,16 @@ function GroupChatScreen({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showScrollUp, setShowScrollUp] = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setShowScrollUp(el.scrollTop > 100);
+    setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 100);
+  }, []);
 
   const loadMessages = useCallback(async () => {
     if (!actor) return;
@@ -2797,6 +2867,13 @@ function GroupChatScreen({
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   const handleSend = async () => {
     if (!input.trim() || !actor) return;
@@ -2823,49 +2900,95 @@ function GroupChatScreen({
       <StarsBackground />
       <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
         <SubPageHeader title="Group Chat" onBack={onBack} />
-        <ScrollArea className="flex-1 mb-4">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-8 h-8 text-gold animate-spin" />
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center py-16">
-              <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">
-                No messages yet. Say hello!
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3 py-2 pr-2">
-              {messages.map((msg, i) => {
-                const isOwn = msg.sender === user.firstName;
-                return (
-                  <motion.div
-                    key={`${msg.sender}-${String(msg.timestamp)}-${i}`}
-                    className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                  >
-                    {!isOwn && (
-                      <span className="text-gold text-xs font-medium mb-1 ml-1">
-                        {msg.sender}
-                      </span>
-                    )}
-                    <div
-                      className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${isOwn ? "bg-gold text-deep-space rounded-tr-sm" : "card-celestial text-foreground rounded-tl-sm"}`}
+
+        <div className="relative flex-1 min-h-0">
+          <div ref={scrollRef} className="h-full overflow-y-auto mb-4">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 text-gold animate-spin" />
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center py-16">
+                <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">
+                  No messages yet. Say hello!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 py-2 pr-2">
+                {messages.map((msg, i) => {
+                  const isOwn = msg.sender === user.firstName;
+                  return (
+                    <motion.div
+                      key={`${msg.sender}-${String(msg.timestamp)}-${i}`}
+                      className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
                     >
-                      {msg.content}
-                    </div>
-                    <span className="text-muted-foreground text-xs mt-1 mx-1">
-                      {formatTime(msg.timestamp)}
-                    </span>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
+                      {!isOwn && (
+                        <span className="text-gold text-xs font-medium mb-1 ml-1">
+                          {msg.sender}
+                        </span>
+                      )}
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${isOwn ? "bg-gold text-deep-space rounded-tr-sm" : "card-celestial text-foreground rounded-tl-sm"}`}
+                      >
+                        {msg.content}
+                      </div>
+                      <span className="text-muted-foreground text-xs mt-1 mx-1">
+                        {formatTime(msg.timestamp)}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Scroll Up Button */}
+          <AnimatePresence>
+            {showScrollUp && (
+              <motion.button
+                key="scroll-up-group"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+                onClick={() => {
+                  if (scrollRef.current) scrollRef.current.scrollTop = 0;
+                }}
+                aria-label="Scroll to top"
+                className="absolute bottom-24 right-4 w-9 h-9 rounded-full bg-gold text-deep-space flex items-center justify-center shadow-lg hover:bg-accent transition-colors z-20"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          {/* Scroll Down Button */}
+          <AnimatePresence>
+            {showScrollDown && (
+              <motion.button
+                key="scroll-down-group"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+                onClick={() => {
+                  if (scrollRef.current)
+                    scrollRef.current.scrollTop =
+                      scrollRef.current.scrollHeight;
+                }}
+                aria-label="Scroll to bottom"
+                className="absolute bottom-14 right-4 w-9 h-9 rounded-full bg-gold text-deep-space flex items-center justify-center shadow-lg hover:bg-accent transition-colors z-20"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
         <div className="flex gap-2 pb-6">
           <Input
             value={input}
