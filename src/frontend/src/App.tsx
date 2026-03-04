@@ -25,6 +25,7 @@ import {
   ExternalLink,
   GraduationCap,
   Heart,
+  HelpCircle,
   ImageIcon,
   Lightbulb,
   Loader2,
@@ -82,6 +83,7 @@ type Screen =
   | "calendar"
   | "school-works"
   | "rules"
+  | "quiz"
   | "attendance"
   | "prayer"
   | "group-chat"
@@ -917,6 +919,13 @@ function HomeScreen({
     label: string;
     desc: string;
   }> = [
+    { screen: "rules", icon: Shield, label: "Rules", desc: "Community rules" },
+    {
+      screen: "quiz",
+      icon: HelpCircle,
+      label: "Quiz Box",
+      desc: "Test your knowledge!",
+    },
     {
       screen: "notifications",
       icon: Bell,
@@ -1003,7 +1012,6 @@ function HomeScreen({
       label: "YouTube Channel",
       desc: "Watch our videos",
     },
-    { screen: "rules", icon: Shield, label: "Rules", desc: "Community rules" },
   ];
 
   return (
@@ -3139,14 +3147,335 @@ function HomeWorksScreen({
   );
 }
 
+// ─── Quiz Screen ───────────────────────────────────────────────────────────────
+
+interface QuizQuestion {
+  id: number;
+  question: string;
+  options: [string, string, string, string];
+  correctIndex: number;
+  marks: number;
+}
+
+function QuizScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
+  const isAdmin = isLeader(user.firstName, user.lastName);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({
+    question: "",
+    a: "",
+    b: "",
+    c: "",
+    d: "",
+    correct: 0,
+    marks: 1,
+  });
+  // Per-question attempt state: index -> chosen option index
+  const [attempts, setAttempts] = useState<Record<number, number>>({});
+  const [submitted, setSubmitted] = useState<Record<number, boolean>>({});
+
+  const handleAdd = () => {
+    if (!form.question.trim() || !form.a || !form.b || !form.c || !form.d) {
+      toast.error("Fill in question and all 4 options");
+      return;
+    }
+    const q: QuizQuestion = {
+      id: Date.now(),
+      question: form.question.trim(),
+      options: [form.a, form.b, form.c, form.d],
+      correctIndex: form.correct,
+      marks: form.marks,
+    };
+    setQuestions((p) => [...p, q]);
+    setForm({ question: "", a: "", b: "", c: "", d: "", correct: 0, marks: 1 });
+    setAddOpen(false);
+    toast.success("Question added!");
+  };
+
+  const handleDelete = (id: number) => {
+    setQuestions((p) => p.filter((q) => q.id !== id));
+    toast.success("Question removed");
+  };
+
+  const handleChoose = (qId: number, optIndex: number) => {
+    if (submitted[qId]) return;
+    setAttempts((p) => ({ ...p, [qId]: optIndex }));
+  };
+
+  const handleSubmit = (qId: number) => {
+    if (attempts[qId] === undefined) {
+      toast.error("Please select an option first");
+      return;
+    }
+    setSubmitted((p) => ({ ...p, [qId]: true }));
+    const q = questions.find((x) => x.id === qId);
+    if (!q) return;
+    if (attempts[qId] === q.correctIndex) {
+      toast.success(`Correct! +${q.marks} mark${q.marks > 1 ? "s" : ""} 🎉`);
+    } else {
+      toast.error(
+        `Wrong! Correct answer: ${String.fromCharCode(65 + q.correctIndex)}`,
+      );
+    }
+  };
+
+  const optionLabels = ["A", "B", "C", "D"];
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">Quiz Box</h1>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setAddOpen(true)}
+                className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+                data-ocid="quiz.open_modal_button"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Question
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+              data-ocid="quiz.back.button"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {questions.length === 0 ? (
+          <div className="text-center py-20">
+            <HelpCircle className="w-14 h-14 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground text-lg font-display">
+              No questions yet
+            </p>
+            {isAdmin && (
+              <p className="text-muted-foreground text-sm mt-2">
+                Tap "Add Question" to create the first quiz question
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {questions.map((q, qi) => {
+              const chosen = attempts[q.id];
+              const isSubmitted = submitted[q.id];
+              return (
+                <motion.div
+                  key={q.id}
+                  className="card-celestial rounded-2xl p-5"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: qi * 0.06 }}
+                  data-ocid={`quiz.item.${qi + 1}`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-4">
+                    <p className="font-display font-semibold text-foreground text-base leading-snug flex-1">
+                      <span className="text-gold mr-2">Q{qi + 1}.</span>
+                      {q.question}
+                    </p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-gold bg-gold/15 border border-gold/30 rounded-lg px-2 py-1 font-medium">
+                        {q.marks} mark{q.marks > 1 ? "s" : ""}
+                      </span>
+                      {isAdmin && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDelete(q.id)}
+                          className="w-7 h-7 text-destructive hover:bg-destructive/10 rounded-lg"
+                          data-ocid={`quiz.delete_button.${qi + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mb-4">
+                    {q.options.map((opt, oi) => {
+                      let btnClass =
+                        "w-full text-left rounded-xl px-4 py-2.5 text-sm border transition-all duration-150 flex items-center gap-3 ";
+                      if (!isSubmitted) {
+                        btnClass +=
+                          chosen === oi
+                            ? "bg-gold/25 border-gold text-foreground"
+                            : "bg-secondary/20 border-border text-foreground hover:border-gold/50 hover:bg-gold/10";
+                      } else {
+                        if (oi === q.correctIndex) {
+                          btnClass +=
+                            "bg-green-500/20 border-green-500 text-green-300";
+                        } else if (chosen === oi && oi !== q.correctIndex) {
+                          btnClass +=
+                            "bg-red-500/20 border-red-500 text-red-300";
+                        } else {
+                          btnClass +=
+                            "bg-secondary/10 border-border/50 text-muted-foreground opacity-60";
+                        }
+                      }
+                      return (
+                        <button
+                          key={`${q.id}-opt-${oi}`}
+                          type="button"
+                          className={btnClass}
+                          onClick={() => handleChoose(q.id, oi)}
+                          disabled={isSubmitted}
+                          data-ocid={`quiz.item.${qi + 1}.radio.${oi + 1}`}
+                        >
+                          <span className="w-6 h-6 rounded-full bg-gold/20 border border-gold/40 flex items-center justify-center text-gold text-xs font-bold flex-shrink-0">
+                            {optionLabels[oi]}
+                          </span>
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!isSubmitted ? (
+                    <Button
+                      onClick={() => handleSubmit(q.id)}
+                      className="w-full bg-gold text-deep-space hover:bg-accent rounded-xl h-10 font-display font-semibold"
+                      data-ocid={`quiz.item.${qi + 1}.submit_button`}
+                    >
+                      Submit Answer
+                    </Button>
+                  ) : (
+                    <div
+                      className={`text-center text-sm font-semibold py-2 rounded-xl ${
+                        attempts[q.id] === q.correctIndex
+                          ? "text-green-400 bg-green-500/10"
+                          : "text-red-400 bg-red-500/10"
+                      }`}
+                    >
+                      {attempts[q.id] === q.correctIndex
+                        ? `Correct! +${q.marks} mark${q.marks > 1 ? "s" : ""}`
+                        : `Wrong! Correct: ${optionLabels[q.correctIndex]}`}
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Add Question Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent
+          className="bg-card border-border text-foreground max-w-sm rounded-2xl"
+          data-ocid="quiz.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Quiz Question
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto pr-1">
+            <div>
+              <Label className="text-muted-foreground text-sm">Question</Label>
+              <textarea
+                value={form.question}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, question: e.target.value }))
+                }
+                placeholder="Enter your question..."
+                rows={3}
+                className="w-full mt-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-gold resize-none"
+                data-ocid="quiz.textarea"
+              />
+            </div>
+            {(["a", "b", "c", "d"] as const).map((key, i) => (
+              <div key={key}>
+                <Label className="text-muted-foreground text-sm">
+                  Option {optionLabels[i]}
+                </Label>
+                <Input
+                  value={form[key]}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, [key]: e.target.value }))
+                  }
+                  placeholder={`Option ${optionLabels[i]}`}
+                  className="bg-input border-border mt-1"
+                  data-ocid={`quiz.option_${key}.input`}
+                />
+              </div>
+            ))}
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                Correct Answer
+              </Label>
+              <select
+                value={form.correct}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, correct: Number(e.target.value) }))
+                }
+                className="w-full mt-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-gold"
+                data-ocid="quiz.correct.select"
+              >
+                {optionLabels.map((l, i) => (
+                  <option key={l} value={i}>
+                    Option {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">Marks</Label>
+              <Input
+                type="number"
+                min={1}
+                value={form.marks}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    marks: Math.max(1, Number(e.target.value)),
+                  }))
+                }
+                className="bg-input border-border mt-1"
+                data-ocid="quiz.marks.input"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setAddOpen(false)}
+              data-ocid="quiz.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+              data-ocid="quiz.submit_button"
+            >
+              Add Question
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Notifications Screen ──────────────────────────────────────────────────────
 function NotificationsScreen({
   notifications,
   onMarkAllRead,
+  onDismissOne,
   onBack,
 }: {
   notifications: NotificationItem[];
   onMarkAllRead: () => void;
+  onDismissOne: (id: string) => void;
   onBack: () => void;
 }) {
   const formatTime = (ts: number) => {
@@ -3158,8 +3487,6 @@ function NotificationsScreen({
     return new Date(ts).toLocaleDateString();
   };
 
-  const unread = notifications.filter((n) => !n.read).length;
-
   return (
     <div className="relative min-h-screen celestial-bg overflow-y-auto">
       <StarsBackground />
@@ -3169,14 +3496,14 @@ function NotificationsScreen({
             Notifications
           </h1>
           <div className="flex items-center gap-2">
-            {unread > 0 && (
+            {notifications.length > 0 && (
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={onMarkAllRead}
                 className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
               >
-                Mark all read
+                Clear all
               </Button>
             )}
             <Button
@@ -3194,43 +3521,52 @@ function NotificationsScreen({
           <div className="text-center py-20">
             <Bell className="w-14 h-14 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground text-lg font-display">
-              No notifications yet
+              No notifications
             </p>
             <p className="text-muted-foreground text-sm mt-2">
-              Messages from all boxes will appear here
+              New messages from all boxes will appear here
             </p>
           </div>
         ) : (
           <div className="space-y-2">
-            {notifications.map((n, i) => (
-              <motion.div
-                key={n.id}
-                className={`rounded-2xl px-4 py-3 flex items-start gap-3 ${n.read ? "card-celestial opacity-70" : "card-celestial border border-gold/40"}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
-              >
-                <div className="w-9 h-9 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Bell className="w-4 h-4 text-gold" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="text-gold text-xs font-semibold uppercase tracking-wide truncate">
-                      {n.boxName}
-                    </span>
-                    <span className="text-muted-foreground text-xs flex-shrink-0">
-                      {formatTime(n.timestamp)}
-                    </span>
+            <AnimatePresence>
+              {notifications.map((n, i) => (
+                <motion.div
+                  key={n.id}
+                  layout
+                  className="card-celestial border border-gold/30 rounded-2xl px-4 py-3 flex items-start gap-3"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: 60, transition: { duration: 0.2 } }}
+                  transition={{ delay: i * 0.04 }}
+                >
+                  <div className="w-9 h-9 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Bell className="w-4 h-4 text-gold" />
                   </div>
-                  <p className="text-foreground text-sm leading-relaxed line-clamp-2">
-                    {n.message}
-                  </p>
-                </div>
-                {!n.read && (
-                  <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-2" />
-                )}
-              </motion.div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <span className="text-gold text-xs font-semibold uppercase tracking-wide truncate">
+                        {n.boxName}
+                      </span>
+                      <span className="text-muted-foreground text-xs flex-shrink-0">
+                        {formatTime(n.timestamp)}
+                      </span>
+                    </div>
+                    <p className="text-foreground text-sm leading-relaxed line-clamp-2">
+                      {n.message}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onDismissOne(n.id)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0 mt-0.5"
+                    title="Remove"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
@@ -3355,7 +3691,11 @@ function AppInner() {
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
   const markAllNotifsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications([]);
+  }, []);
+
+  const dismissOneNotif = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
 
   const updateUser = useCallback((u: UserData) => {
@@ -3608,6 +3948,17 @@ function AppInner() {
               <RulesScreen onBack={() => navigate("home")} />
             </motion.div>
           )}
+          {screen === "quiz" && (
+            <motion.div
+              key="quiz"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <QuizScreen user={userData} onBack={() => navigate("home")} />
+            </motion.div>
+          )}
           {screen === "attendance" && (
             <motion.div
               key="attendance"
@@ -3672,6 +4023,7 @@ function AppInner() {
               <NotificationsScreen
                 notifications={notifications}
                 onMarkAllRead={markAllNotifsRead}
+                onDismissOne={dismissOneNotif}
                 onBack={() => navigate("home")}
               />
             </motion.div>
