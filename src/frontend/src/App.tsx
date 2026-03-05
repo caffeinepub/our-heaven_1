@@ -10,7 +10,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowDown,
   ArrowLeft,
@@ -35,6 +42,7 @@ import {
   Music2,
   Plus,
   Send,
+  Settings,
   Shield,
   Star,
   Trash2,
@@ -88,7 +96,8 @@ type Screen =
   | "prayer"
   | "group-chat"
   | "home-works"
-  | "notifications";
+  | "notifications"
+  | "settings";
 
 interface NotificationItem {
   id: string;
@@ -891,6 +900,10 @@ function HomeScreen({
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ ...user });
   const [saving, setSaving] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
 
   const handleSave = async () => {
     if (!actor) return;
@@ -1012,6 +1025,12 @@ function HomeScreen({
       label: "YouTube Channel",
       desc: "Watch our videos",
     },
+    {
+      screen: "settings" as Screen,
+      icon: Settings,
+      label: "Settings",
+      desc: "App settings & preferences",
+    },
   ];
 
   return (
@@ -1021,7 +1040,17 @@ function HomeScreen({
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8 pb-16">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setSettingsOpen(true)}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10 flex-shrink-0"
+            title="Settings"
+            data-ocid="home.settings.open_modal_button"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
+          <div className="flex items-center gap-3 flex-1 justify-center">
             <img
               src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
               alt="Our Heaven"
@@ -1041,7 +1070,7 @@ function HomeScreen({
               setEditForm({ ...user });
               setEditOpen(true);
             }}
-            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10 flex-shrink-0"
             title="Edit account"
           >
             <Edit2 className="w-4 h-4" />
@@ -1088,7 +1117,11 @@ function HomeScreen({
           {featureBoxes.map(({ screen, icon: Icon, label, desc }, i) => (
             <motion.button
               key={screen}
-              onClick={() => onNavigate(screen)}
+              onClick={() =>
+                screen === "settings"
+                  ? setSettingsOpen(true)
+                  : onNavigate(screen)
+              }
               className="w-full card-celestial rounded-2xl p-4 flex items-center gap-4 hover:border-gold/40 transition-all duration-200 hover:glow-gold-sm text-left"
               initial={{ opacity: 0, x: -15 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1200,6 +1233,133 @@ function HomeScreen({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Settings Sheet */}
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent
+          side="bottom"
+          className="bg-card border-t border-gold/30 rounded-t-2xl max-h-[55vh] overflow-y-auto"
+          data-ocid="settings.sheet"
+        >
+          <SheetHeader className="mb-4">
+            <SheetTitle className="font-display text-gold text-lg">
+              Settings
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="space-y-3 pb-6">
+            {/* Edit Profile */}
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsOpen(false);
+                setEditForm({ ...user });
+                setEditOpen(true);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl card-celestial hover:border-gold/40 transition-all text-left"
+              data-ocid="settings.edit_profile.button"
+            >
+              <User className="w-5 h-5 text-gold" />
+              <div>
+                <p className="font-display font-semibold text-foreground text-sm">
+                  Edit Profile
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Update your account details
+                </p>
+              </div>
+            </button>
+
+            {/* Change Password */}
+            <div className="px-4 py-3 rounded-xl card-celestial space-y-2">
+              <div className="flex items-center gap-3">
+                <Shield className="w-5 h-5 text-gold" />
+                <p className="font-display font-semibold text-foreground text-sm flex-1">
+                  Change Password
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowChangePassword(!showChangePassword)}
+                  className="text-gold border border-gold/30 hover:bg-gold/10 rounded-lg text-xs h-8"
+                  data-ocid="settings.change_password.toggle"
+                >
+                  {showChangePassword ? "Cancel" : "Change"}
+                </Button>
+              </div>
+              {showChangePassword && (
+                <div className="flex gap-2 pt-1">
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password (min 6 chars)"
+                    className="flex-1 bg-input border-border text-foreground h-10 rounded-xl text-sm"
+                    data-ocid="settings.new_password.input"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (newPassword.length < 6) {
+                        toast.error("Password must be at least 6 characters");
+                        return;
+                      }
+                      onUpdateUser({ ...user, password: newPassword });
+                      setNewPassword("");
+                      setShowChangePassword(false);
+                      toast.success("Password updated!");
+                    }}
+                    className="bg-gold text-deep-space hover:bg-accent rounded-xl h-10 text-sm"
+                    data-ocid="settings.save_password.button"
+                  >
+                    Save
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Notifications Toggle */}
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl card-celestial">
+              <Bell className="w-5 h-5 text-gold" />
+              <div className="flex-1">
+                <p className="font-display font-semibold text-foreground text-sm">
+                  Notifications
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Enable message notifications
+                </p>
+              </div>
+              <Switch
+                checked={notificationsEnabled}
+                onCheckedChange={setNotificationsEnabled}
+                data-ocid="settings.notifications.switch"
+              />
+            </div>
+
+            {/* Log Out */}
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem("our-heaven-user");
+                setSettingsOpen(false);
+                window.location.reload();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/30 hover:bg-destructive/20 transition-all text-left"
+              data-ocid="settings.logout.button"
+            >
+              <X className="w-5 h-5 text-destructive" />
+              <div>
+                <p className="font-display font-semibold text-destructive text-sm">
+                  Log Out
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Sign out of your account
+                </p>
+              </div>
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -1419,7 +1579,7 @@ function MessagesScreen({
           />
           <Button
             onClick={handleSend}
-            disabled={sending || !input.trim() || !actor}
+            disabled={sending || !input.trim()}
             className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0 flex-shrink-0"
           >
             {sending ? (
@@ -3012,7 +3172,7 @@ function GroupChatScreen({
           />
           <Button
             onClick={handleSend}
-            disabled={sending || !input.trim() || !actor}
+            disabled={sending || !input.trim()}
             className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0 flex-shrink-0"
           >
             {sending ? (

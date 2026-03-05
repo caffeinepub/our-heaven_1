@@ -1,22 +1,34 @@
 # Our Heaven
 
 ## Current State
-Full app is built with splash screen, registration, 16 feature boxes (Messages, Group Chat, Important Messages, Your Ideas, Home Works, School Works, Star of the Month, Birthday Dates, Meet, Attendance, Photos, Calendar, Prayer, WhatsApp Group, YouTube Channel, Rules), notifications, leader badge, and background music.
-
-The backend `registerAccount` function currently requires `#user` permission. Since brand-new users (Srida, Afira, and others) have no account yet, they are treated as guests and the permission check blocks them from creating an account. Registration fails silently for them.
+Full-stack app with splash, registration, home screen, and 16+ feature boxes. Backend in Motoko with authorization. Frontend in React/TypeScript. Messages sending currently requires `#user` permission which can block some users.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nothing new
+- Settings box as the **last box** in the homepage feature boxes list (after all existing boxes)
+- Settings icon button in the **top left corner** of the homepage header (gear icon)
+- Both the icon and the box open the same **half-page slide-up Sheet panel** (bottom sheet covering ~50% of screen)
+- Settings panel contents:
+  - Edit Profile (opens existing edit account dialog)
+  - Change Password field
+  - Log Out button (clears localStorage and returns to splash/welcome)
+  - Notifications toggle (on/off)
 
 ### Modify
-- `registerAccount` backend function: remove the `#user` permission check so that any guest can call it to create a new account. The phone-number duplicate check should still be enforced.
+- Fix `sendMessage` calls in MessagesScreen, GroupChatScreen: remove the `!actor` guard from the send button disabled state so all users can send messages freely. The send button should only be disabled when input is empty or sending is in progress.
+- Add `"settings"` to the `Screen` type
+- Add Settings icon (Settings/Gear icon from lucide-react) to imports
 
 ### Remove
-- The `#user` authorization guard on `registerAccount` only
+- Nothing removed
 
 ## Implementation Plan
-1. Regenerate backend Motoko code with `registerAccount` open to all callers (no permission check), keeping all other functions unchanged.
-2. All other backend functions remain identical.
-3. Deploy.
+1. Add `Settings` to lucide-react imports
+2. Add `"settings"` to Screen type (or handle settings as a sheet overlay, not a screen)
+3. Add `settingsOpen` state to HomeScreen
+4. Add Settings gear icon button to top-left of homepage header
+5. Add Sheet component (half-page bottom sheet) for settings panel with: Edit Profile trigger, Change Password, Log Out, Notifications toggle
+6. Add Settings box as last item in `featureBoxes` array in HomeScreen
+7. Fix send button disabled condition in MessagesScreen and GroupChatScreen to only check `!input.trim() || sending`
+8. Wire Log Out to clear localStorage and navigate to "welcome" screen
