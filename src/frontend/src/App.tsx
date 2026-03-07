@@ -42,6 +42,7 @@ import {
   MicOff,
   Music,
   Music2,
+  Pencil,
   Plus,
   Send,
   Settings,
@@ -3099,8 +3100,9 @@ function SchoolWorksScreen({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Rules Screen ──────────────────────────────────────────────────────────────
-function RulesScreen({ onBack }: { onBack: () => void }) {
-  const rules = [
+function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
+  const leaderAccess = isLeader(user.firstName, user.lastName);
+  const [rules, setRules] = useState([
     "NO BAD WORDS",
     "NO SPAMMING",
     "BE FRIENDLY TO OTHERS",
@@ -3111,26 +3113,139 @@ function RulesScreen({ onBack }: { onBack: () => void }) {
     "QUIZ ONLY ABOUT GAMES THINGS",
     "DO NOT MAKE FUN OF OTHERS IF THEY ARE IN ANY PROBLEM",
     "IF SOMEONE NEED NOTES OR INFO SEND THEM THE ANSWER",
-  ];
+  ]);
+  const [editing, setEditing] = useState(false);
+  const [editTexts, setEditTexts] = useState<string[]>([]);
+  const [newRule, setNewRule] = useState("");
+
+  const startEdit = () => {
+    setEditTexts([...rules]);
+    setEditing(true);
+  };
+  const saveEdit = () => {
+    const cleaned = editTexts.map((r) => r.trim()).filter((r) => r.length > 0);
+    setRules(cleaned);
+    setEditing(false);
+    setNewRule("");
+  };
+  const cancelEdit = () => {
+    setEditing(false);
+    setNewRule("");
+  };
+  const addRule = () => {
+    const trimmed = newRule.trim();
+    if (!trimmed) return;
+    setEditTexts((prev) => [...prev, trimmed.toUpperCase()]);
+    setNewRule("");
+  };
+  const removeRule = (idx: number) => {
+    setEditTexts((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   return (
     <div className="relative min-h-screen celestial-bg overflow-y-auto">
       <StarsBackground />
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
         <SubPageHeader title="Rules" onBack={onBack} />
         <div className="card-celestial rounded-2xl p-5">
-          <h2 className="font-display text-xl font-bold text-gold mb-4 text-center">
-            RULES OF THIS GROUP
-          </h2>
-          <div className="space-y-3">
-            {rules.map((rule, i) => (
-              <div key={rule} className="flex items-start gap-3">
-                <span className="text-gold font-bold text-sm flex-shrink-0">
-                  {i + 1})
-                </span>
-                <p className="text-foreground text-sm">{rule}</p>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-xl font-bold text-gold text-center flex-1">
+              RULES OF THIS GROUP
+            </h2>
+            {leaderAccess && !editing && (
+              <button
+                type="button"
+                data-ocid="rules.edit_button"
+                onClick={startEdit}
+                className="ml-2 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gold/20 hover:bg-gold/30 text-gold text-xs font-semibold border border-gold/40 transition-colors flex-shrink-0"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </button>
+            )}
           </div>
+
+          {!editing ? (
+            <div className="space-y-3">
+              {rules.map((rule, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: order-dependent list
+                <div key={`rule-view-${i}`} className="flex items-start gap-3">
+                  <span className="text-gold font-bold text-sm flex-shrink-0">
+                    {i + 1})
+                  </span>
+                  <p className="text-foreground text-sm">{rule}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {editTexts.map((rule, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: order-dependent editable list
+                <div key={`rule-edit-${i}`} className="flex items-center gap-2">
+                  <span className="text-gold font-bold text-sm flex-shrink-0 w-6">
+                    {i + 1})
+                  </span>
+                  <input
+                    data-ocid={`rules.input.${i + 1}`}
+                    value={rule}
+                    onChange={(e) => {
+                      const updated = [...editTexts];
+                      updated[i] = e.target.value;
+                      setEditTexts(updated);
+                    }}
+                    className="flex-1 bg-background/60 border border-gold/30 rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-gold/70"
+                  />
+                  <button
+                    type="button"
+                    data-ocid={`rules.delete_button.${i + 1}`}
+                    onClick={() => removeRule(i)}
+                    className="text-red-400 hover:text-red-300 flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {/* Add new rule */}
+              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                <input
+                  data-ocid="rules.new_rule.input"
+                  value={newRule}
+                  onChange={(e) => setNewRule(e.target.value)}
+                  placeholder="Add new rule..."
+                  onKeyDown={(e) => e.key === "Enter" && addRule()}
+                  className="flex-1 bg-background/60 border border-gold/30 rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold/70"
+                />
+                <button
+                  type="button"
+                  data-ocid="rules.add_button"
+                  onClick={addRule}
+                  className="px-3 py-1.5 rounded-lg bg-gold/20 hover:bg-gold/30 text-gold text-sm font-semibold border border-gold/40 transition-colors flex-shrink-0"
+                >
+                  Add
+                </button>
+              </div>
+              {/* Save / Cancel */}
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  data-ocid="rules.save_button"
+                  onClick={saveEdit}
+                  className="flex-1 py-2 rounded-xl bg-gold text-background font-bold text-sm hover:bg-gold/80 transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  data-ocid="rules.cancel_button"
+                  onClick={cancelEdit}
+                  className="flex-1 py-2 rounded-xl bg-muted text-foreground font-semibold text-sm hover:bg-muted/70 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mt-5 pt-4 border-t border-border">
             <p className="text-muted-foreground text-xs italic text-center">
               Note: Breaking these rules can result in ban. 1 MONTH LEFT THE 2
@@ -4496,7 +4611,7 @@ function AppInner() {
               exit={{ opacity: 0, x: 40 }}
               transition={{ duration: 0.3 }}
             >
-              <RulesScreen onBack={() => navigate("home")} />
+              <RulesScreen user={userData} onBack={() => navigate("home")} />
             </motion.div>
           )}
           {screen === "quiz" && (
