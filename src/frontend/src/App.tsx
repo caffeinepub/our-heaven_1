@@ -38,6 +38,8 @@ import {
   Loader2,
   MessageCircle,
   MessageSquare,
+  Mic,
+  MicOff,
   Music,
   Music2,
   Plus,
@@ -471,7 +473,7 @@ function SplashScreen({ onComplete }: { onComplete: () => void }) {
       }, 2000);
       const t2 = setTimeout(() => {
         onComplete();
-      }, 7000);
+      }, 4000);
       return () => {
         soundTimers.forEach(clearTimeout);
         clearTimeout(t1);
@@ -1389,6 +1391,301 @@ function SubPageHeader({
   );
 }
 
+// ─── Chat Attachment Menu ──────────────────────────────────────────────────────
+
+interface ChatMediaMessage {
+  type: "image" | "voice";
+  content: string; // data URL for image, blob URL for voice
+  mimeType: string;
+  name: string;
+}
+
+function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      mediaRef.current = mr;
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        onDone({
+          type: "voice",
+          content: url,
+          mimeType: "audio/webm",
+          name: "voice-message.webm",
+        });
+        for (const t of stream.getTracks()) t.stop();
+        setRecording(false);
+        setSeconds(0);
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+      mr.start();
+      setRecording(true);
+      setSeconds(0);
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    } catch {
+      toast.error("Microphone access denied");
+    }
+  };
+
+  const stop = () => {
+    mediaRef.current?.stop();
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  return { recording, seconds, start, stop };
+}
+
+interface ChatInputBarProps {
+  input: string;
+  setInput: (v: string) => void;
+  onSend: () => void;
+  sending: boolean;
+  onMediaSend: (msg: ChatMediaMessage) => void;
+  ocidPrefix: string;
+}
+
+function ChatInputBar({
+  input,
+  setInput,
+  onSend,
+  sending,
+  onMediaSend,
+  ocidPrefix,
+}: ChatInputBarProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    recording,
+    seconds,
+    start: startRecording,
+    stop: stopRecording,
+  } = useVoiceRecorder((msg) => {
+    onMediaSend(msg);
+    setMenuOpen(false);
+  });
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      onMediaSend({
+        type: "image",
+        content: reader.result as string,
+        mimeType: file.type,
+        name: file.name,
+      });
+      setMenuOpen(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="relative flex gap-2 pb-6">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handlePhotoSelect}
+        data-ocid={`${ocidPrefix}.photo_upload.input`}
+      />
+
+      {/* Attachment popup menu */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-20 left-0 z-30 card-celestial border border-gold/30 rounded-2xl p-3 shadow-xl min-w-[180px]"
+          >
+            <p className="text-muted-foreground text-xs font-medium mb-2 px-1">
+              Send attachment
+            </p>
+
+            {/* Send Photo */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gold/10 transition-colors text-left"
+              data-ocid={`${ocidPrefix}.send_photo.button`}
+            >
+              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <ImageIcon className="w-4 h-4 text-blue-400" />
+              </div>
+              <span className="text-foreground text-sm font-medium">Photo</span>
+            </button>
+
+            {/* Voice Message */}
+            <button
+              type="button"
+              onClick={recording ? stopRecording : startRecording}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left ${
+                recording
+                  ? "bg-red-500/10 hover:bg-red-500/20"
+                  : "hover:bg-gold/10"
+              }`}
+              data-ocid={`${ocidPrefix}.voice_record.button`}
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${recording ? "bg-red-500/30" : "bg-green-500/20"}`}
+              >
+                {recording ? (
+                  <MicOff className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Mic className="w-4 h-4 text-green-400" />
+                )}
+              </div>
+              <div>
+                <span className="text-foreground text-sm font-medium block">
+                  {recording ? "Stop recording" : "Voice message"}
+                </span>
+                {recording && (
+                  <span className="text-red-400 text-xs animate-pulse">
+                    {String(Math.floor(seconds / 60)).padStart(2, "0")}:
+                    {String(seconds % 60).padStart(2, "0")} recording…
+                  </span>
+                )}
+              </div>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Plus/Attach Button */}
+      <button
+        type="button"
+        onClick={() => setMenuOpen((o) => !o)}
+        className={`flex-shrink-0 w-12 h-12 rounded-xl border transition-all flex items-center justify-center ${
+          menuOpen
+            ? "bg-gold text-deep-space border-gold"
+            : "bg-card border-gold/30 text-gold hover:bg-gold/10 hover:border-gold"
+        }`}
+        title="Attach photo or voice"
+        data-ocid={`${ocidPrefix}.attach.button`}
+      >
+        {menuOpen ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+      </button>
+
+      <Input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+        placeholder="Type a message..."
+        className="flex-1 bg-input border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 focus:border-gold"
+        data-ocid={`${ocidPrefix}.message.input`}
+        onClick={() => setMenuOpen(false)}
+      />
+      <Button
+        onClick={onSend}
+        disabled={sending || !input.trim()}
+        className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0 flex-shrink-0"
+        data-ocid={`${ocidPrefix}.send.button`}
+      >
+        {sending ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Send className="w-4 h-4" />
+        )}
+      </Button>
+    </div>
+  );
+}
+
+// Helper: render a chat message bubble that may contain image or voice
+function ChatBubble({
+  msg,
+  isOwn,
+  senderName,
+  time,
+  onDelete,
+}: {
+  msg: { content: string; sender: string };
+  isOwn: boolean;
+  senderName: string;
+  time: string;
+  onDelete?: () => void;
+}) {
+  const isImageData = msg.content.startsWith("data:image");
+  const isVoiceBlob =
+    msg.content.startsWith("blob:") || msg.content.startsWith("[voice]");
+
+  return (
+    <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+      {!isOwn && (
+        <span className="text-gold text-xs font-medium mb-1 ml-1">
+          {senderName}
+        </span>
+      )}
+      <div
+        className={`max-w-[75%] rounded-2xl overflow-hidden ${
+          isOwn
+            ? "bg-gold text-deep-space rounded-tr-sm"
+            : "card-celestial text-foreground rounded-tl-sm"
+        }`}
+      >
+        {isImageData ? (
+          <img
+            src={msg.content}
+            alt="sent"
+            className="max-w-full max-h-48 object-contain block"
+          />
+        ) : isVoiceBlob ? (
+          <div className="flex items-center gap-2 px-3 py-2">
+            <Mic className="w-4 h-4 flex-shrink-0" />
+            {/* biome-ignore lint/a11y/useMediaCaption: voice message playback, no transcript available */}
+            <audio
+              controls
+              src={msg.content.replace("[voice]", "")}
+              className="h-8 max-w-[160px]"
+            />
+          </div>
+        ) : (
+          <p className="px-4 py-2.5 text-sm">{msg.content}</p>
+        )}
+      </div>
+      <div
+        className={`flex items-center gap-2 mt-1 mx-1 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+      >
+        <span className="text-muted-foreground text-xs">{time}</span>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="Delete message"
+            className="text-destructive hover:text-destructive/80 transition-colors p-0.5 rounded"
+            data-ocid="chat.delete_button"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Screen 7: Messages ────────────────────────────────────────────────────────
 
 function MessagesScreen({
@@ -1400,6 +1697,9 @@ function MessagesScreen({
 }) {
   const actor = useBackendActor();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [localMediaMsgs, setLocalMediaMsgs] = useState<
+    Array<{ id: string; sender: string; content: string; time: string }>
+  >([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1419,7 +1719,6 @@ function MessagesScreen({
     try {
       const msgs = await actor.getAllMessages();
       setMessages(msgs);
-      // Scroll after state update
       setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -1457,6 +1756,27 @@ function MessagesScreen({
     }
   };
 
+  const handleMediaSend = (media: ChatMediaMessage) => {
+    const newMsg = {
+      id: `media-${Date.now()}`,
+      sender: user.firstName,
+      content:
+        media.type === "voice" ? `[voice]${media.content}` : media.content,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    setLocalMediaMsgs((prev) => [...prev, newMsg]);
+    toast.success(
+      media.type === "image" ? "Photo sent!" : "Voice message sent!",
+    );
+    setTimeout(() => {
+      if (scrollRef.current)
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, 100);
+  };
+
   const formatTime = (ts: bigint) => {
     const ms = Number(ts) / 1_000_000;
     return new Date(ms).toLocaleTimeString([], {
@@ -1477,7 +1797,7 @@ function MessagesScreen({
               <div className="flex justify-center py-8">
                 <Loader2 className="w-8 h-8 text-gold animate-spin" />
               </div>
-            ) : messages.length === 0 ? (
+            ) : messages.length === 0 && localMediaMsgs.length === 0 ? (
               <div className="text-center py-16">
                 <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground">
@@ -1487,36 +1807,63 @@ function MessagesScreen({
             ) : (
               <div className="space-y-3 py-2 pr-2">
                 {messages.map((msg, i) => {
-                  const isOwn = msg.sender === user.firstName;
-                  const msgKey = `${msg.sender}-${String(msg.timestamp)}-${i}`;
+                  const canDelete =
+                    isLeader(user.firstName, user.lastName) ||
+                    msg.sender === user.firstName;
                   return (
                     <motion.div
-                      key={msgKey}
-                      className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+                      key={`${msg.sender}-${String(msg.timestamp)}-${i}`}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.03 }}
                     >
-                      {!isOwn && (
-                        <span className="text-gold text-xs font-medium mb-1 ml-1">
-                          {msg.sender}
-                        </span>
-                      )}
-                      <div
-                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                          isOwn
-                            ? "bg-gold text-deep-space rounded-tr-sm"
-                            : "card-celestial text-foreground rounded-tl-sm"
-                        }`}
-                      >
-                        {msg.content}
-                      </div>
-                      <span className="text-muted-foreground text-xs mt-1 mx-1">
-                        {formatTime(msg.timestamp)}
-                      </span>
+                      <ChatBubble
+                        msg={{ content: msg.content, sender: msg.sender }}
+                        isOwn={msg.sender === user.firstName}
+                        senderName={msg.sender}
+                        time={formatTime(msg.timestamp)}
+                        onDelete={
+                          canDelete
+                            ? async () => {
+                                try {
+                                  // Backend Message type has no id field, remove from local state only
+                                  setMessages((prev) =>
+                                    prev.filter((_, idx) => idx !== i),
+                                  );
+                                } catch {
+                                  toast.error("Failed to delete message");
+                                }
+                              }
+                            : undefined
+                        }
+                      />
                     </motion.div>
                   );
                 })}
+                {localMediaMsgs.map((m) => (
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <ChatBubble
+                      msg={{ content: m.content, sender: m.sender }}
+                      isOwn={m.sender === user.firstName}
+                      senderName={m.sender}
+                      time={m.time}
+                      onDelete={
+                        isLeader(user.firstName, user.lastName) ||
+                        m.sender === user.firstName
+                          ? () => {
+                              setLocalMediaMsgs((prev) =>
+                                prev.filter((x) => x.id !== m.id),
+                              );
+                            }
+                          : undefined
+                      }
+                    />
+                  </motion.div>
+                ))}
               </div>
             )}
           </div>
@@ -1564,31 +1911,14 @@ function MessagesScreen({
           </AnimatePresence>
         </div>
 
-        <div className="flex gap-2 pb-6">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Type a message..."
-            className="flex-1 bg-input border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 focus:border-gold"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={sending || !input.trim()}
-            className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0 flex-shrink-0"
-          >
-            {sending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
-        </div>
+        <ChatInputBar
+          input={input}
+          setInput={setInput}
+          onSend={handleSend}
+          sending={sending}
+          onMediaSend={handleMediaSend}
+          ocidPrefix="messages"
+        />
       </div>
     </div>
   );
@@ -2428,14 +2758,39 @@ function YourIdeasScreen({
               <p className="text-muted-foreground">No ideas yet. Share one!</p>
             </div>
           )}
-          {ideas.map((idea) => (
-            <div key={idea.id} className="card-celestial rounded-2xl px-4 py-3">
-              <p className="text-gold text-xs font-medium mb-1">
-                {idea.author}
-              </p>
-              <p className="text-foreground text-sm">{idea.text}</p>
-            </div>
-          ))}
+          {ideas.map((idea) => {
+            const canDelete =
+              isLeader(user.firstName, user.lastName) ||
+              idea.author === user.firstName;
+            return (
+              <div
+                key={idea.id}
+                className="card-celestial rounded-2xl px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gold text-xs font-medium mb-1">
+                      {idea.author}
+                    </p>
+                    <p className="text-foreground text-sm">{idea.text}</p>
+                  </div>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIdeas((prev) => prev.filter((x) => x.id !== idea.id))
+                      }
+                      aria-label="Delete idea"
+                      className="text-destructive hover:text-destructive/80 transition-colors p-1 rounded flex-shrink-0 mt-0.5"
+                      data-ocid="ideas.delete_button"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
         {showInput ? (
           <div className="flex gap-2">
@@ -3002,6 +3357,9 @@ function GroupChatScreen({
 }: { user: UserData; onBack: () => void }) {
   const actor = useBackendActor();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [localMediaMsgs, setLocalMediaMsgs] = useState<
+    Array<{ id: string; sender: string; content: string; time: string }>
+  >([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -3057,6 +3415,27 @@ function GroupChatScreen({
     }
   };
 
+  const handleMediaSend = (media: ChatMediaMessage) => {
+    const newMsg = {
+      id: `media-gc-${Date.now()}`,
+      sender: user.firstName,
+      content:
+        media.type === "voice" ? `[voice]${media.content}` : media.content,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    setLocalMediaMsgs((prev) => [...prev, newMsg]);
+    toast.success(
+      media.type === "image" ? "Photo sent!" : "Voice message sent!",
+    );
+    setTimeout(() => {
+      if (scrollRef.current)
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, 100);
+  };
+
   const formatTime = (ts: bigint) =>
     new Date(Number(ts) / 1_000_000).toLocaleTimeString([], {
       hour: "2-digit",
@@ -3075,7 +3454,7 @@ function GroupChatScreen({
               <div className="flex justify-center py-8">
                 <Loader2 className="w-8 h-8 text-gold animate-spin" />
               </div>
-            ) : messages.length === 0 ? (
+            ) : messages.length === 0 && localMediaMsgs.length === 0 ? (
               <div className="text-center py-16">
                 <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground">
@@ -3085,31 +3464,58 @@ function GroupChatScreen({
             ) : (
               <div className="space-y-3 py-2 pr-2">
                 {messages.map((msg, i) => {
-                  const isOwn = msg.sender === user.firstName;
+                  const canDelete =
+                    isLeader(user.firstName, user.lastName) ||
+                    msg.sender === user.firstName;
                   return (
                     <motion.div
                       key={`${msg.sender}-${String(msg.timestamp)}-${i}`}
-                      className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.03 }}
                     >
-                      {!isOwn && (
-                        <span className="text-gold text-xs font-medium mb-1 ml-1">
-                          {msg.sender}
-                        </span>
-                      )}
-                      <div
-                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${isOwn ? "bg-gold text-deep-space rounded-tr-sm" : "card-celestial text-foreground rounded-tl-sm"}`}
-                      >
-                        {msg.content}
-                      </div>
-                      <span className="text-muted-foreground text-xs mt-1 mx-1">
-                        {formatTime(msg.timestamp)}
-                      </span>
+                      <ChatBubble
+                        msg={{ content: msg.content, sender: msg.sender }}
+                        isOwn={msg.sender === user.firstName}
+                        senderName={msg.sender}
+                        time={formatTime(msg.timestamp)}
+                        onDelete={
+                          canDelete
+                            ? () => {
+                                setMessages((prev) =>
+                                  prev.filter((_, idx) => idx !== i),
+                                );
+                              }
+                            : undefined
+                        }
+                      />
                     </motion.div>
                   );
                 })}
+                {localMediaMsgs.map((m) => (
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <ChatBubble
+                      msg={{ content: m.content, sender: m.sender }}
+                      isOwn={m.sender === user.firstName}
+                      senderName={m.sender}
+                      time={m.time}
+                      onDelete={
+                        isLeader(user.firstName, user.lastName) ||
+                        m.sender === user.firstName
+                          ? () => {
+                              setLocalMediaMsgs((prev) =>
+                                prev.filter((x) => x.id !== m.id),
+                              );
+                            }
+                          : undefined
+                      }
+                    />
+                  </motion.div>
+                ))}
               </div>
             )}
           </div>
@@ -3157,31 +3563,14 @@ function GroupChatScreen({
           </AnimatePresence>
         </div>
 
-        <div className="flex gap-2 pb-6">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Type a message..."
-            className="flex-1 bg-input border-border text-foreground rounded-xl h-12 focus:border-gold"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={sending || !input.trim()}
-            className="bg-gold text-deep-space hover:bg-accent rounded-xl h-12 w-12 p-0 flex-shrink-0"
-          >
-            {sending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
-        </div>
+        <ChatInputBar
+          input={input}
+          setInput={setInput}
+          onSend={handleSend}
+          sending={sending}
+          onMediaSend={handleMediaSend}
+          ocidPrefix="group_chat"
+        />
       </div>
     </div>
   );
@@ -3761,10 +4150,7 @@ function saveUser(u: UserData) {
 function AppInner() {
   const { actor } = useActor();
 
-  const [screen, setScreen] = useState<Screen>(() => {
-    const stored = loadStoredUser();
-    return stored ? "home" : "splash";
-  });
+  const [screen, setScreen] = useState<Screen>("splash");
   const [userData, setUserData] = useState<UserData>(() => {
     return (
       loadStoredUser() ?? {
@@ -3900,7 +4286,12 @@ function AppInner() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <SplashScreen onComplete={() => navigate("welcome")} />
+              <SplashScreen
+                onComplete={() => {
+                  const stored = loadStoredUser();
+                  navigate(stored ? "home" : "welcome");
+                }}
+              />
             </motion.div>
           )}
 

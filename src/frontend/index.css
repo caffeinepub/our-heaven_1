@@ -22,16 +22,16 @@
   :root {
     --radius: 1rem;
 
-    /* Our Heaven — Celestial Dark Theme */
-    /* Deep space background with gold/amber accents */
-    --background: 0.10 0.02 280;
-    --foreground: 0.95 0.03 75;
+    /* Our Heaven — Aurora Heaven Theme */
+    /* Deep violet-teal aurora with gold/amber accents */
+    --background: 0.09 0.03 280;
+    --foreground: 0.96 0.03 75;
 
-    --card: 0.14 0.03 275;
-    --card-foreground: 0.95 0.03 75;
+    --card: 0.15 0.05 285;
+    --card-foreground: 0.96 0.03 75;
 
-    --popover: 0.16 0.04 275;
-    --popover-foreground: 0.95 0.03 75;
+    --popover: 0.17 0.05 285;
+    --popover-foreground: 0.96 0.03 75;
 
     /* Gold/amber primary */
     --primary: 0.80 0.15 75;
@@ -129,27 +129,22 @@
   }
 
   .celestial-bg {
-    background: radial-gradient(
-        ellipse at 20% 50%,
-        oklch(0.18 0.08 275 / 0.6) 0%,
-        transparent 60%
-      ),
-      radial-gradient(
-        ellipse at 80% 20%,
-        oklch(0.15 0.06 260 / 0.4) 0%,
-        transparent 50%
-      ),
-      oklch(var(--deep-space));
+    background:
+      radial-gradient(ellipse 120% 60% at 10% 0%, oklch(0.28 0.12 310 / 0.55) 0%, transparent 55%),
+      radial-gradient(ellipse 80% 50% at 90% 10%, oklch(0.26 0.14 180 / 0.45) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 70% at 50% 100%, oklch(0.20 0.10 260 / 0.50) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 75% 55%, oklch(0.24 0.16 75 / 0.20) 0%, transparent 50%),
+      linear-gradient(160deg, oklch(0.10 0.04 300) 0%, oklch(0.08 0.03 250) 50%, oklch(0.07 0.02 220) 100%);
   }
 
   .card-celestial {
     background: linear-gradient(
       135deg,
-      oklch(0.16 0.05 275 / 0.9) 0%,
-      oklch(0.12 0.03 280 / 0.95) 100%
+      oklch(0.17 0.06 290 / 0.88) 0%,
+      oklch(0.13 0.04 270 / 0.94) 100%
     );
-    border: 1px solid oklch(var(--gold) / 0.2);
-    backdrop-filter: blur(12px);
+    border: 1px solid oklch(var(--gold) / 0.22);
+    backdrop-filter: blur(16px);
   }
 }
 
