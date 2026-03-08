@@ -399,38 +399,101 @@ function MusicPlayer() {
   );
 }
 
-// ─── Stars Background ─────────────────────────────────────────────────────────
+// ─── Stars Background (3D Warp Starfield) ────────────────────────────────────
 
 function StarsBackground() {
-  const stars = useRef(
-    Array.from({ length: 80 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 2 + 0.5,
-      delay: Math.random() * 3,
-      duration: 2 + Math.random() * 3,
-    })),
-  );
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const NUM_STARS = 200;
+    const FOCAL = 400;
+    const SPEED = 1.5;
+    const RANGE = 500;
+
+    type Star3D = { x: number; y: number; z: number };
+
+    const stars: Star3D[] = Array.from({ length: NUM_STARS }, () => ({
+      x: (Math.random() - 0.5) * RANGE * 2,
+      y: (Math.random() - 0.5) * RANGE * 2,
+      z: Math.random() * RANGE,
+    }));
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
+      for (const star of stars) {
+        star.z -= SPEED;
+        if (star.z <= 0) {
+          star.x = (Math.random() - 0.5) * RANGE * 2;
+          star.y = (Math.random() - 0.5) * RANGE * 2;
+          star.z = RANGE;
+        }
+
+        const sx = (star.x / star.z) * FOCAL + cx;
+        const sy = (star.y / star.z) * FOCAL + cy;
+
+        // Only draw stars that are within canvas bounds
+        if (sx < 0 || sx > canvas.width || sy < 0 || sy > canvas.height)
+          continue;
+
+        const depth = 1 - star.z / RANGE; // 0 = far, 1 = close
+        const size = Math.max(0.4, depth * 3);
+        const opacity = 0.1 + depth * 0.9;
+
+        // Color: far = blue-white (#e0e8ff), close = gold (#FFD700)
+        // Interpolate between the two
+        const r = Math.round(224 + (255 - 224) * depth); // 224 -> 255
+        const g = Math.round(232 + (215 - 232) * depth); // 232 -> 215
+        const b = Math.round(255 + (0 - 255) * depth); // 255 -> 0
+
+        ctx.beginPath();
+        ctx.arc(sx, sy, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${r},${g},${b},${opacity})`;
+        ctx.fill();
+
+        // Add a glow halo on the closest stars
+        if (depth > 0.7) {
+          ctx.beginPath();
+          ctx.arc(sx, sy, size * 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${r},${g},${b},${opacity * 0.15})`;
+          ctx.fill();
+        }
+      }
+
+      animId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {stars.current.map((star) => (
-        <div
-          key={star.id}
-          className="absolute rounded-full bg-starlight"
-          style={{
-            left: `${star.x}%`,
-            top: `${star.y}%`,
-            width: `${star.size}px`,
-            height: `${star.size}px`,
-            opacity: 0.3,
-            animation: `star-twinkle ${star.duration}s ease-in-out infinite`,
-            animationDelay: `${star.delay}s`,
-          }}
-        />
-      ))}
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none"
+    />
   );
 }
 
@@ -4393,13 +4456,13 @@ function AppInner() {
         <Toaster richColors position="top-center" />
         <MusicPlayer />
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           {screen === "splash" && (
             <motion.div
               key="splash"
               initial={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.3 }}
             >
               <SplashScreen
                 onComplete={() => {
