@@ -501,10 +501,6 @@ function StarsBackground() {
 
 function SplashScreen({ onComplete }: { onComplete: () => void }) {
   const [count, setCount] = useState(0);
-  const [phase, setPhase] = useState<"loading" | "fireworks" | "welcome">(
-    "loading",
-  );
-  const [welcomeVisible, setWelcomeVisible] = useState(false);
   const completedRef = useRef(false);
 
   useEffect(() => {
@@ -523,26 +519,8 @@ function SplashScreen({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
     if (count >= 100 && !completedRef.current) {
       completedRef.current = true;
-      setPhase("fireworks");
-
-      // Play firework sounds matching the 9 visual bursts fired every 200ms
-      const soundTimers: ReturnType<typeof setTimeout>[] = [];
-      for (let i = 0; i < 9; i++) {
-        soundTimers.push(setTimeout(() => playFireworkSound(), i * 200));
-      }
-
-      const t1 = setTimeout(() => {
-        setPhase("welcome");
-        setWelcomeVisible(true);
-      }, 2000);
-      const t2 = setTimeout(() => {
-        onComplete();
-      }, 4000);
-      return () => {
-        soundTimers.forEach(clearTimeout);
-        clearTimeout(t1);
-        clearTimeout(t2);
-      };
+      // Skip fireworks and welcome screen — go straight to homepage
+      onComplete();
     }
   }, [count, onComplete]);
 
@@ -555,73 +533,29 @@ function SplashScreen({ onComplete }: { onComplete: () => void }) {
       onKeyDown={resumeAudio}
     >
       <StarsBackground />
-      {phase === "fireworks" && <FireworksCanvas />}
 
-      <AnimatePresence mode="wait">
-        {phase === "loading" && (
-          <motion.div
-            key="loading"
-            className="flex flex-col items-center gap-8 z-10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+      <div className="flex flex-col items-center gap-8 z-10">
+        <motion.div
+          className="rounded-full border-2 border-gold flex items-center justify-center glow-gold"
+          style={{
+            width: circleSize,
+            height: circleSize,
+            background:
+              "radial-gradient(circle at center, oklch(0.20 0.08 75 / 0.3), oklch(0.10 0.03 285 / 0.8))",
+            transition: "width 0.03s linear, height 0.03s linear",
+          }}
+        >
+          <span
+            className="font-display text-gold font-bold"
+            style={{ fontSize: Math.max(16, circleSize * 0.28) }}
           >
-            <motion.div
-              className="rounded-full border-2 border-gold flex items-center justify-center glow-gold"
-              style={{
-                width: circleSize,
-                height: circleSize,
-                background:
-                  "radial-gradient(circle at center, oklch(0.20 0.08 75 / 0.3), oklch(0.10 0.03 285 / 0.8))",
-                transition: "width 0.03s linear, height 0.03s linear",
-              }}
-            >
-              <span
-                className="font-display text-gold font-bold"
-                style={{ fontSize: Math.max(16, circleSize * 0.28) }}
-              >
-                {count}
-              </span>
-            </motion.div>
-            <div className="text-muted-foreground font-sans text-sm tracking-widest uppercase">
-              Loading Our Heaven
-            </div>
-          </motion.div>
-        )}
-
-        {phase === "welcome" && welcomeVisible && (
-          <motion.div
-            key="welcome"
-            className="z-10 flex flex-col items-center gap-6 text-center px-8"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-          >
-            <motion.img
-              src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
-              alt="Our Heaven"
-              className="w-24 h-24 animate-float"
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            />
-            <motion.h1
-              className="font-display text-5xl md:text-7xl font-bold text-gold text-glow-gold"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
-            >
-              Welcome to Our Heaven
-            </motion.h1>
-            <motion.div
-              className="w-32 h-0.5 bg-gold opacity-60"
-              initial={{ width: 0 }}
-              animate={{ width: 128 }}
-              transition={{ delay: 1, duration: 0.8 }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {count}
+          </span>
+        </motion.div>
+        <div className="text-muted-foreground font-sans text-sm tracking-widest uppercase">
+          Loading Our Heaven
+        </div>
+      </div>
     </div>
   );
 }
@@ -4456,13 +4390,13 @@ function AppInner() {
         <Toaster richColors position="top-center" />
         <MusicPlayer />
 
-        <AnimatePresence mode="sync">
+        <AnimatePresence mode="wait">
           {screen === "splash" && (
             <motion.div
               key="splash"
               initial={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.2 }}
             >
               <SplashScreen
                 onComplete={() => {
@@ -4479,7 +4413,7 @@ function AppInner() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.4 }}
+              transition={{ duration: 0.3 }}
             >
               <WelcomeScreen onCreateAccount={() => navigate("register")} />
             </motion.div>
@@ -4520,10 +4454,10 @@ function AppInner() {
           {screen === "home" && (
             <motion.div
               key="home"
-              initial={{ opacity: 0 }}
+              initial={{ opacity: 1 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.4 }}
+              transition={{ duration: 0.3 }}
             >
               <HomeScreen
                 user={userData}
