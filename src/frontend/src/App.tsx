@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Edit2,
   ExternalLink,
+  Gamepad2,
   GraduationCap,
   Heart,
   HelpCircle,
@@ -95,6 +96,7 @@ type Screen =
   | "school-works"
   | "rules"
   | "quiz"
+  | "games"
   | "attendance"
   | "prayer"
   | "group-chat"
@@ -938,6 +940,12 @@ function HomeScreen({
       icon: HelpCircle,
       label: "Quiz Box",
       desc: "Test your knowledge!",
+    },
+    {
+      screen: "games",
+      icon: Gamepad2,
+      label: "Games",
+      desc: "Play mini-games!",
     },
     {
       screen: "notifications",
@@ -3818,6 +3826,495 @@ interface QuizQuestion {
   marks: number;
 }
 
+// ─── Games Screen ─────────────────────────────────────────────────────────────
+
+type GameId = "sos" | "tictactoe" | "memory" | "puzzle" | null;
+
+function SOSGame({ onBack }: { onBack: () => void }) {
+  const SIZE = 5;
+  const empty = Array(SIZE * SIZE).fill("");
+  const [board, setBoard] = useState<string[]>(empty);
+  const [turn, setTurn] = useState<"P1" | "P2">("P1");
+  const [letter, setLetter] = useState<"S" | "O">("S");
+  const [scores, setScores] = useState({ P1: 0, P2: 0 });
+  const [winner, setWinner] = useState<string | null>(null);
+
+  function countSOS(b: string[]) {
+    let count = 0;
+    const lines: number[][] = [];
+    // rows
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c <= SIZE - 3; c++)
+        lines.push([r * SIZE + c, r * SIZE + c + 1, r * SIZE + c + 2]);
+    // cols
+    for (let c = 0; c < SIZE; c++)
+      for (let r = 0; r <= SIZE - 3; r++)
+        lines.push([r * SIZE + c, (r + 1) * SIZE + c, (r + 2) * SIZE + c]);
+    // diag \\
+    for (let r = 0; r <= SIZE - 3; r++)
+      for (let c = 0; c <= SIZE - 3; c++)
+        lines.push([
+          r * SIZE + c,
+          (r + 1) * SIZE + c + 1,
+          (r + 2) * SIZE + c + 2,
+        ]);
+    // diag /
+    for (let r = 0; r <= SIZE - 3; r++)
+      for (let c = 2; c < SIZE; c++)
+        lines.push([
+          r * SIZE + c,
+          (r + 1) * SIZE + c - 1,
+          (r + 2) * SIZE + c - 2,
+        ]);
+    for (const [a, b2, c] of lines) {
+      if (b[a] === "S" && b[b2] === "O" && b[c] === "S") count++;
+    }
+    return count;
+  }
+
+  function handleCell(i: number) {
+    if (board[i] !== "" || winner) return;
+    const nb = [...board];
+    nb[i] = letter;
+    const prevTotal = countSOS(board);
+    const newTotal = countSOS(nb);
+    const scored = newTotal - prevTotal;
+    let ns = { ...scores };
+    if (scored > 0) ns[turn] += scored;
+    setBoard(nb);
+    setScores(ns);
+    const filled = nb.every((c) => c !== "");
+    if (filled) {
+      if (ns.P1 > ns.P2) setWinner("Player 1 Wins!");
+      else if (ns.P2 > ns.P1) setWinner("Player 2 Wins!");
+      else setWinner("Draw!");
+    } else {
+      setTurn(scored > 0 ? turn : turn === "P1" ? "P2" : "P1");
+    }
+  }
+
+  function reset() {
+    setBoard(empty.slice());
+    setTurn("P1");
+    setLetter("S");
+    setScores({ P1: 0, P2: 0 });
+    setWinner(null);
+  }
+
+  return (
+    <div className="p-4">
+      <SubPageHeader title="SOS Game" onBack={onBack} />
+      <div className="flex justify-between mb-3 text-sm text-gold/80">
+        <span>P1: {scores.P1}</span>
+        <span className="text-foreground/70">
+          {winner || (turn === "P1" ? "Player 1's turn" : "Player 2's turn")}
+        </span>
+        <span>P2: {scores.P2}</span>
+      </div>
+      {!winner && (
+        <div className="flex gap-2 justify-center mb-3">
+          <Button
+            size="sm"
+            variant={letter === "S" ? "default" : "outline"}
+            onClick={() => setLetter("S")}
+            className="w-12"
+          >
+            S
+          </Button>
+          <Button
+            size="sm"
+            variant={letter === "O" ? "default" : "outline"}
+            onClick={() => setLetter("O")}
+            className="w-12"
+          >
+            O
+          </Button>
+        </div>
+      )}
+      <div
+        className="grid gap-1 mx-auto"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          maxWidth: 260,
+        }}
+      >
+        {board.map((cell, i) => (
+          <button
+            type="button"
+            key={`sos-${i * 31 + 7}`}
+            onClick={() => handleCell(i)}
+            className="aspect-square rounded-lg border border-border/50 text-lg font-bold text-gold bg-card/50 hover:bg-gold/10 transition-colors flex items-center justify-center"
+            style={{ height: 48 }}
+          >
+            {cell}
+          </button>
+        ))}
+      </div>
+      {winner && (
+        <div className="text-center mt-4">
+          <p className="text-xl font-bold text-gold mb-2">{winner}</p>
+          <Button
+            onClick={reset}
+            className="bg-gold text-black hover:bg-gold/80"
+          >
+            Play Again
+          </Button>
+        </div>
+      )}
+      {!winner && (
+        <div className="text-center mt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reset}
+            className="border-gold/30 text-gold/70"
+          >
+            Reset
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TicTacToeGame({ onBack }: { onBack: () => void }) {
+  const [board, setBoard] = useState<("X" | "O" | null)[]>(Array(9).fill(null));
+  const [xTurn, setXTurn] = useState(true);
+  const [winner, setWinner] = useState<string | null>(null);
+
+  function checkWinner(b: ("X" | "O" | null)[]) {
+    const lines = [
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+      [0, 4, 8],
+      [2, 4, 6],
+    ];
+    for (const [a, b2, c] of lines)
+      if (b[a] && b[a] === b[b2] && b[a] === b[c]) return b[a];
+    if (b.every(Boolean)) return "Draw";
+    return null;
+  }
+
+  function handleCell(i: number) {
+    if (board[i] || winner) return;
+    const nb = [...board] as ("X" | "O" | null)[];
+    nb[i] = xTurn ? "X" : "O";
+    const w = checkWinner(nb);
+    setBoard(nb);
+    if (w) setWinner(w === "Draw" ? "Draw!" : `${w} Wins!`);
+    else setXTurn(!xTurn);
+  }
+
+  function reset() {
+    setBoard(Array(9).fill(null));
+    setXTurn(true);
+    setWinner(null);
+  }
+
+  return (
+    <div className="p-4">
+      <SubPageHeader title="Tic-Tac-Toe" onBack={onBack} />
+      <p className="text-center mb-3 text-gold/80 text-sm">
+        {winner || (xTurn ? "X's turn" : "O's turn")}
+      </p>
+      <div className="grid grid-cols-3 gap-2 mx-auto" style={{ maxWidth: 220 }}>
+        {board.map((cell, i) => (
+          <button
+            type="button"
+            key={`ttt-${i * 13 + 3}`}
+            onClick={() => handleCell(i)}
+            className="aspect-square rounded-xl border-2 border-gold/30 text-3xl font-bold flex items-center justify-center transition-all hover:bg-gold/10"
+            style={{
+              height: 68,
+              color:
+                cell === "X" ? "oklch(0.85 0.18 85)" : "oklch(0.7 0.18 280)",
+            }}
+          >
+            {cell}
+          </button>
+        ))}
+      </div>
+      {winner && (
+        <div className="text-center mt-4">
+          <p className="text-xl font-bold text-gold mb-2">{winner}</p>
+          <Button
+            onClick={reset}
+            className="bg-gold text-black hover:bg-gold/80"
+          >
+            Play Again
+          </Button>
+        </div>
+      )}
+      {!winner && (
+        <div className="text-center mt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reset}
+            className="border-gold/30 text-gold/70"
+          >
+            Reset
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const EMOJIS = ["🐶", "🐱", "🐭", "🐹", "🦊", "🐻", "🐼", "🐨"];
+
+function MemoryGame({ onBack }: { onBack: () => void }) {
+  const shuffle = () => {
+    const arr = [...EMOJIS, ...EMOJIS].map((e, i) => ({
+      id: i,
+      emoji: e,
+      flipped: false,
+      matched: false,
+    }));
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+  const [cards, setCards] = useState(shuffle);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [moves, setMoves] = useState(0);
+  const [matches, setMatches] = useState(0);
+
+  function handleFlip(id: number) {
+    const card = cards.find((c) => c.id === id);
+    if (!card || card.flipped || card.matched || selected.length === 2) return;
+    const ns = [...selected, id];
+    const nc = cards.map((c) => (c.id === id ? { ...c, flipped: true } : c));
+    setCards(nc);
+    setSelected(ns);
+    if (ns.length === 2) {
+      setMoves((m) => m + 1);
+      const [a, b2] = ns.map((i) => nc.find((c) => c.id === i)!);
+      if (a.emoji === b2.emoji) {
+        setTimeout(() => {
+          setCards((prev) =>
+            prev.map((c) => (ns.includes(c.id) ? { ...c, matched: true } : c)),
+          );
+          setMatches((m) => m + 1);
+          setSelected([]);
+        }, 400);
+      } else {
+        setTimeout(() => {
+          setCards((prev) =>
+            prev.map((c) => (ns.includes(c.id) ? { ...c, flipped: false } : c)),
+          );
+          setSelected([]);
+        }, 800);
+      }
+    }
+  }
+
+  const won = matches === EMOJIS.length;
+
+  return (
+    <div className="p-4">
+      <SubPageHeader title="Memory Match" onBack={onBack} />
+      <p className="text-center text-sm text-gold/70 mb-3">
+        Moves: {moves} | Matches: {matches}/{EMOJIS.length}
+      </p>
+      <div className="grid grid-cols-4 gap-2 mx-auto" style={{ maxWidth: 280 }}>
+        {cards.map((card) => (
+          <button
+            type="button"
+            key={card.id}
+            onClick={() => handleFlip(card.id)}
+            className={`aspect-square rounded-xl text-2xl flex items-center justify-center transition-all duration-300 border ${card.flipped || card.matched ? "bg-gold/20 border-gold/50" : "bg-card/80 border-border/40 hover:bg-card"}`}
+          >
+            {card.flipped || card.matched ? card.emoji : "?"}
+          </button>
+        ))}
+      </div>
+      {won && (
+        <div className="text-center mt-4">
+          <p className="text-xl font-bold text-gold mb-2">
+            You Won! 🎉 ({moves} moves)
+          </p>
+          <Button
+            onClick={() => {
+              setCards(shuffle());
+              setMoves(0);
+              setMatches(0);
+              setSelected([]);
+            }}
+            className="bg-gold text-black hover:bg-gold/80"
+          >
+            Play Again
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PuzzleGame({ onBack }: { onBack: () => void }) {
+  const solved = [...Array(15).keys()].map((i) => i + 1).concat([0]);
+  const shuffle = () => {
+    let arr = [...solved];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+  const [tiles, setTiles] = useState(shuffle);
+  const [moves, setMoves] = useState(0);
+
+  function handleTile(i: number) {
+    const empty = tiles.indexOf(0);
+    const row = Math.floor(i / 4);
+    const col = i % 4;
+    const er = Math.floor(empty / 4);
+    const ec = empty % 4;
+    if (
+      (Math.abs(row - er) === 1 && col === ec) ||
+      (Math.abs(col - ec) === 1 && row === er)
+    ) {
+      const nt = [...tiles];
+      [nt[i], nt[empty]] = [nt[empty], nt[i]];
+      setTiles(nt);
+      setMoves((m) => m + 1);
+    }
+  }
+
+  const won = tiles.every((t, i) => t === solved[i]);
+
+  return (
+    <div className="p-4">
+      <SubPageHeader title="Number Puzzle" onBack={onBack} />
+      <p className="text-center text-sm text-gold/70 mb-3">
+        Moves: {moves} {won ? "🎉 Solved!" : ""}
+      </p>
+      <div
+        className="grid grid-cols-4 gap-1.5 mx-auto"
+        style={{ maxWidth: 240 }}
+      >
+        {tiles.map((t, i) => (
+          <button
+            type="button"
+            key={`tile-pos-${i + 1}`}
+            onClick={() => handleTile(i)}
+            className={`aspect-square rounded-lg text-lg font-bold flex items-center justify-center transition-all border ${t === 0 ? "bg-transparent border-transparent" : "bg-card/80 border-gold/30 hover:bg-gold/10 text-gold"}`}
+          >
+            {t !== 0 ? t : ""}
+          </button>
+        ))}
+      </div>
+      {won && (
+        <div className="text-center mt-4">
+          <p className="text-xl font-bold text-gold mb-2">
+            Solved! 🎉 ({moves} moves)
+          </p>
+          <Button
+            onClick={() => {
+              setTiles(shuffle());
+              setMoves(0);
+            }}
+            className="bg-gold text-black hover:bg-gold/80"
+          >
+            Play Again
+          </Button>
+        </div>
+      )}
+      {!won && (
+        <div className="text-center mt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setTiles(shuffle());
+              setMoves(0);
+            }}
+            className="border-gold/30 text-gold/70"
+          >
+            Shuffle
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GamesScreen({ onBack }: { onBack: () => void }) {
+  const [activeGame, setActiveGame] = useState<GameId>(null);
+
+  if (activeGame === "sos")
+    return <SOSGame onBack={() => setActiveGame(null)} />;
+  if (activeGame === "tictactoe")
+    return <TicTacToeGame onBack={() => setActiveGame(null)} />;
+  if (activeGame === "memory")
+    return <MemoryGame onBack={() => setActiveGame(null)} />;
+  if (activeGame === "puzzle")
+    return <PuzzleGame onBack={() => setActiveGame(null)} />;
+
+  const games = [
+    {
+      id: "sos" as GameId,
+      emoji: "🔤",
+      name: "SOS",
+      desc: "Form SOS in a row!",
+      color: "from-purple-500/20 to-purple-900/20 border-purple-500/30",
+    },
+    {
+      id: "tictactoe" as GameId,
+      emoji: "❌",
+      name: "Tic-Tac-Toe",
+      desc: "Classic X vs O",
+      color: "from-blue-500/20 to-blue-900/20 border-blue-500/30",
+    },
+    {
+      id: "memory" as GameId,
+      emoji: "🃏",
+      name: "Memory Match",
+      desc: "Find the pairs!",
+      color: "from-green-500/20 to-green-900/20 border-green-500/30",
+    },
+    {
+      id: "puzzle" as GameId,
+      emoji: "🔢",
+      name: "Number Puzzle",
+      desc: "Slide to sort 1-15",
+      color: "from-orange-500/20 to-orange-900/20 border-orange-500/30",
+    },
+  ];
+
+  return (
+    <div className="p-4">
+      <SubPageHeader title="Games" onBack={onBack} />
+      <p className="text-center text-foreground/60 text-sm mb-6">
+        Choose a game to play!
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        {games.map((g) => (
+          <button
+            type="button"
+            key={g.id}
+            onClick={() => setActiveGame(g.id)}
+            className={`rounded-2xl border bg-gradient-to-br p-5 flex flex-col items-center gap-2 hover:scale-105 transition-transform active:scale-95 ${g.color}`}
+          >
+            <span className="text-4xl">{g.emoji}</span>
+            <span className="font-bold text-gold text-sm">{g.name}</span>
+            <span className="text-foreground/60 text-xs text-center">
+              {g.desc}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function QuizScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
   const isAdmin = isLeader(user.firstName, user.lastName);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -4620,6 +5117,17 @@ function AppInner() {
               transition={{ duration: 0.3 }}
             >
               <QuizScreen user={userData} onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "games" && (
+            <motion.div
+              key="games"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <GamesScreen onBack={() => navigate("home")} />
             </motion.div>
           )}
           {screen === "attendance" && (
