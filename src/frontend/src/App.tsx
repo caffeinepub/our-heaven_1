@@ -3107,6 +3107,9 @@ function SchoolWorksScreen({ onBack }: { onBack: () => void }) {
 // ─── Rules Screen ──────────────────────────────────────────────────────────────
 function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
   const leaderAccess = isLeader(user.firstName, user.lastName);
+  const isAaron = user.firstName.trim().toLowerCase() === "aaron";
+  const [rulesPhoto, setRulesPhoto] = useState<string | null>(null);
+  const rulesPhotoInputRef = useRef<HTMLInputElement>(null);
   const [rules, setRules] = useState([
     "NO BAD WORDS",
     "NO SPAMMING",
@@ -3250,6 +3253,64 @@ function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
               </div>
             </div>
           )}
+
+          {/* Rules Photo Section */}
+          <div className="mt-5 pt-4 border-t border-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-gold font-semibold text-sm">Rules Photo</h3>
+              {isAaron && (
+                <button
+                  type="button"
+                  data-ocid="rules.upload_button"
+                  onClick={() => rulesPhotoInputRef.current?.click()}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gold/20 hover:bg-gold/30 text-gold text-xs font-semibold border border-gold/40 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {rulesPhoto ? "Change" : "Add Photo"}
+                </button>
+              )}
+              <input
+                ref={rulesPhotoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                data-ocid="rules.dropzone"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setRulesPhoto(ev.target?.result as string);
+                  };
+                  reader.readAsDataURL(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            {rulesPhoto ? (
+              <div className="relative rounded-xl overflow-hidden border border-gold/30">
+                <img
+                  src={rulesPhoto}
+                  alt="Rules"
+                  className="w-full object-contain max-h-72"
+                />
+                {isAaron && (
+                  <button
+                    type="button"
+                    data-ocid="rules.delete_button"
+                    onClick={() => setRulesPhoto(null)}
+                    className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs italic text-center">
+                No photo added yet.
+              </p>
+            )}
+          </div>
 
           <div className="mt-5 pt-4 border-t border-border">
             <p className="text-muted-foreground text-xs italic text-center">
