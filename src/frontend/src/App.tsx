@@ -44,6 +44,7 @@ import {
   Music,
   Music2,
   Pencil,
+  Phone,
   Plus,
   Send,
   Settings,
@@ -99,6 +100,8 @@ type Screen =
   | "games"
   | "attendance"
   | "prayer"
+  | "indian-songs"
+  | "calling"
   | "group-chat"
   | "home-works"
   | "notifications"
@@ -1021,6 +1024,18 @@ function HomeScreen({
       desc: "Important dates",
     },
     { screen: "prayer", icon: Heart, label: "Prayer", desc: "Our prayers" },
+    {
+      screen: "indian-songs",
+      icon: Music2,
+      label: "Indian Songs & Prayers",
+      desc: "Devotional songs & prayers",
+    },
+    {
+      screen: "calling",
+      icon: Phone,
+      label: "Calling",
+      desc: "Member phone directory",
+    },
     {
       screen: "whatsapp",
       icon: MessageCircle,
@@ -3461,17 +3476,52 @@ function AttendanceScreen({
 }
 
 // ─── Prayer Screen ─────────────────────────────────────────────────────────────
-function PrayerScreen({ onBack }: { onBack: () => void }) {
-  const [prayer, setPrayer] = useState(
-    "Lord, bless our group with love, peace, and wisdom. Amen.",
-  );
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(prayer);
+interface PrayerEntry {
+  id: string;
+  text: string;
+  author: string;
+}
 
-  const handleSave = () => {
-    setPrayer(draft);
-    setEditing(false);
+function PrayerScreen({ onBack }: { onBack: () => void }) {
+  const [prayers, setPrayers] = useState<PrayerEntry[]>([
+    {
+      id: "1",
+      text: "Lord, bless our group with love, peace, and wisdom. Amen.",
+      author: "Everyone",
+    },
+    {
+      id: "2",
+      text: "May God guide our steps and keep us together always. Amen.",
+      author: "Everyone",
+    },
+  ]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newPrayer, setNewPrayer] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+
+  const addPrayer = () => {
+    if (!newPrayer.trim()) return;
+    setPrayers((prev) => [
+      ...prev,
+      { id: Date.now().toString(), text: newPrayer.trim(), author: "Me" },
+    ]);
+    setNewPrayer("");
+    setShowAdd(false);
+    toast.success("Prayer added!");
+  };
+
+  const saveEdit = (id: string) => {
+    setPrayers((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, text: editText } : p)),
+    );
+    setEditId(null);
     toast.success("Prayer updated!");
+  };
+
+  const deletePrayer = (id: string) => {
+    setPrayers((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Prayer removed");
   };
 
   return (
@@ -3479,21 +3529,6 @@ function PrayerScreen({ onBack }: { onBack: () => void }) {
       <StarsBackground />
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
         <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setDraft(prayer);
-                setEditing(!editing);
-              }}
-              className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
-            >
-              <Edit2 className="w-3.5 h-3.5 mr-1.5" />
-              {editing ? "Cancel" : "Edit"}
-            </Button>
-          </div>
-          <h1 className="font-display text-xl font-bold text-gold">Prayer</h1>
           <Button
             size="icon"
             variant="ghost"
@@ -3502,28 +3537,477 @@ function PrayerScreen({ onBack }: { onBack: () => void }) {
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
+          <h1 className="font-display text-xl font-bold text-gold">Prayer</h1>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setShowAdd(true)}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            data-ocid="prayer.open_modal_button"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
         </div>
-        <div className="card-celestial rounded-2xl p-6">
-          <Heart className="w-10 h-10 text-gold mx-auto mb-4" />
-          {editing ? (
-            <>
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={6}
-                className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-gold resize-none mb-4"
-              />
+
+        {showAdd && (
+          <div className="card-celestial rounded-2xl p-4 mb-4">
+            <h3 className="text-gold font-semibold mb-3">Add New Prayer</h3>
+            <textarea
+              value={newPrayer}
+              onChange={(e) => setNewPrayer(e.target.value)}
+              placeholder="Write your prayer here..."
+              rows={4}
+              className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-gold resize-none mb-3"
+              data-ocid="prayer.textarea"
+            />
+            <div className="flex gap-2">
               <Button
-                onClick={handleSave}
-                className="w-full bg-gold text-deep-space hover:bg-accent rounded-xl"
+                onClick={addPrayer}
+                className="flex-1 bg-gold text-deep-space hover:bg-accent rounded-xl"
+                data-ocid="prayer.submit_button"
               >
                 Save Prayer
               </Button>
-            </>
-          ) : (
-            <p className="text-foreground text-base leading-relaxed text-center italic">
-              {prayer}
-            </p>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowAdd(false);
+                  setNewPrayer("");
+                }}
+                className="flex-1 border border-border rounded-xl"
+                data-ocid="prayer.cancel_button"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {prayers.map((p, i) => (
+            <div
+              key={p.id}
+              className="card-celestial rounded-2xl p-5"
+              data-ocid={`prayer.item.${i + 1}`}
+            >
+              <Heart className="w-6 h-6 text-gold mx-auto mb-3" />
+              {editId === p.id ? (
+                <>
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    rows={4}
+                    className="w-full bg-input border border-border rounded-xl px-3 py-2 text-foreground text-sm focus:outline-none focus:border-gold resize-none mb-3"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => saveEdit(p.id)}
+                      className="flex-1 bg-gold text-deep-space hover:bg-accent rounded-xl"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditId(null)}
+                      className="flex-1 border border-border rounded-xl"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-foreground text-sm leading-relaxed text-center italic mb-4">
+                    {p.text}
+                  </p>
+                  <div className="flex justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditId(p.id);
+                        setEditText(p.text);
+                      }}
+                      className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs"
+                      data-ocid={`prayer.edit_button.${i + 1}`}
+                    >
+                      <Edit2 className="w-3 h-3 mr-1" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deletePrayer(p.id)}
+                      className="border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs"
+                      data-ocid={`prayer.delete_button.${i + 1}`}
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" /> Remove
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Indian Songs & Prayers Screen ────────────────────────────────────────────
+interface SongEntry {
+  id: string;
+  title: string;
+  type: "song" | "prayer";
+  content: string;
+  youtubeUrl?: string;
+}
+
+function IndianSongsScreen({ onBack }: { onBack: () => void }) {
+  const [items, setItems] = useState<SongEntry[]>([
+    {
+      id: "1",
+      title: "Om Namah Shivaya",
+      type: "prayer",
+      content: "A sacred mantra dedicated to Lord Shiva. Chant with devotion.",
+      youtubeUrl: "",
+    },
+    {
+      id: "2",
+      title: "Hare Krishna Mahamantra",
+      type: "prayer",
+      content:
+        "Hare Krishna Hare Krishna, Krishna Krishna Hare Hare, Hare Rama Hare Rama, Rama Rama Hare Hare.",
+      youtubeUrl: "",
+    },
+    {
+      id: "3",
+      title: "Bhajan - Raghupati Raghav",
+      type: "song",
+      content: "Raghupati Raghav Raja Ram, Patita Pavan Sita Ram...",
+      youtubeUrl:
+        "https://www.youtube.com/results?search_query=raghupati+raghav+bhajan",
+    },
+  ]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [newType, setNewType] = useState<"song" | "prayer">("prayer");
+  const [newUrl, setNewUrl] = useState("");
+
+  const addItem = () => {
+    if (!newTitle.trim() || !newContent.trim()) return;
+    setItems((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        title: newTitle.trim(),
+        type: newType,
+        content: newContent.trim(),
+        youtubeUrl: newUrl.trim(),
+      },
+    ]);
+    setNewTitle("");
+    setNewContent("");
+    setNewUrl("");
+    setNewType("prayer");
+    setShowAdd(false);
+    toast.success("Added successfully!");
+  };
+
+  const deleteItem = (id: string) => {
+    setItems((prev) => prev.filter((x) => x.id !== id));
+    toast.success("Removed");
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onBack}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <h1 className="font-display text-lg font-bold text-gold">
+            Indian Songs & Prayers
+          </h1>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setShowAdd(true)}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            data-ocid="indian.open_modal_button"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
+
+        {showAdd && (
+          <div className="card-celestial rounded-2xl p-4 mb-4">
+            <h3 className="text-gold font-semibold mb-3">Add Song / Prayer</h3>
+            <div className="flex gap-2 mb-3">
+              <Button
+                size="sm"
+                onClick={() => setNewType("prayer")}
+                className={`flex-1 rounded-xl text-xs ${newType === "prayer" ? "bg-gold text-deep-space" : "border border-border text-foreground bg-transparent"}`}
+              >
+                Prayer
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setNewType("song")}
+                className={`flex-1 rounded-xl text-xs ${newType === "song" ? "bg-gold text-deep-space" : "border border-border text-foreground bg-transparent"}`}
+              >
+                Song
+              </Button>
+            </div>
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Title..."
+              className="mb-2 rounded-xl"
+              data-ocid="indian.input"
+            />
+            <textarea
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              placeholder="Lyrics / Prayer text..."
+              rows={4}
+              className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-gold resize-none mb-2"
+              data-ocid="indian.textarea"
+            />
+            <Input
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              placeholder="YouTube link (optional)"
+              className="mb-3 rounded-xl"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={addItem}
+                className="flex-1 bg-gold text-deep-space hover:bg-accent rounded-xl"
+                data-ocid="indian.submit_button"
+              >
+                Add
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setShowAdd(false)}
+                className="flex-1 border border-border rounded-xl"
+                data-ocid="indian.cancel_button"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {items.map((item, i) => (
+            <div
+              key={item.id}
+              className="card-celestial rounded-2xl p-5"
+              data-ocid={`indian.item.${i + 1}`}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium mr-2 ${item.type === "song" ? "bg-purple-500/20 text-purple-300" : "bg-gold/20 text-gold"}`}
+                  >
+                    {item.type === "song" ? "Song" : "Prayer"}
+                  </span>
+                  <span className="text-foreground font-semibold text-sm">
+                    {item.title}
+                  </span>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => deleteItem(item.id)}
+                  className="text-red-400 hover:bg-red-500/10 w-7 h-7 rounded-lg"
+                  data-ocid={`indian.delete_button.${i + 1}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <p className="text-muted-foreground text-xs leading-relaxed italic mb-3">
+                {item.content}
+              </p>
+              {item.youtubeUrl && (
+                <a
+                  href={item.youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-gold text-xs hover:underline"
+                >
+                  <Youtube className="w-3.5 h-3.5" /> Watch on YouTube
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Calling Screen ────────────────────────────────────────────────────────────
+interface ContactEntry {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+function CallingScreen({ onBack }: { onBack: () => void }) {
+  const [contacts, setContacts] = useState<ContactEntry[]>([
+    { id: "1", name: "Aaron David Jojo", phone: "" },
+    { id: "2", name: "Nevveen", phone: "" },
+  ]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+
+  const addContact = () => {
+    if (!newName.trim() || !newPhone.trim()) return;
+    setContacts((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        name: newName.trim(),
+        phone: newPhone.trim(),
+      },
+    ]);
+    setNewName("");
+    setNewPhone("");
+    setShowAdd(false);
+    toast.success("Contact added!");
+  };
+
+  const deleteContact = (id: string) => {
+    setContacts((prev) => prev.filter((c) => c.id !== id));
+    toast.success("Contact removed");
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onBack}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <h1 className="font-display text-xl font-bold text-gold">Calling</h1>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setShowAdd(true)}
+            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            data-ocid="calling.open_modal_button"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
+
+        {showAdd && (
+          <div className="card-celestial rounded-2xl p-4 mb-4">
+            <h3 className="text-gold font-semibold mb-3">Add Contact</h3>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Name..."
+              className="mb-2 rounded-xl"
+              data-ocid="calling.input"
+            />
+            <Input
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              placeholder="Phone number..."
+              type="tel"
+              className="mb-3 rounded-xl"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={addContact}
+                className="flex-1 bg-gold text-deep-space hover:bg-accent rounded-xl"
+                data-ocid="calling.submit_button"
+              >
+                Add
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setShowAdd(false)}
+                className="flex-1 border border-border rounded-xl"
+                data-ocid="calling.cancel_button"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {contacts.map((c, i) => (
+            <div
+              key={c.id}
+              className="card-celestial rounded-2xl p-4 flex items-center justify-between"
+              data-ocid={`calling.item.${i + 1}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-gold" />
+                </div>
+                <div>
+                  <p className="text-foreground font-medium text-sm">
+                    {c.name}
+                  </p>
+                  {c.phone && (
+                    <p className="text-muted-foreground text-xs">{c.phone}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {c.phone && (
+                  <a href={`tel:${c.phone}`}>
+                    <Button
+                      size="icon"
+                      className="bg-green-600 hover:bg-green-700 w-9 h-9 rounded-xl"
+                      data-ocid={`calling.button.${i + 1}`}
+                    >
+                      <Phone className="w-4 h-4 text-white" />
+                    </Button>
+                  </a>
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => deleteContact(c.id)}
+                  className="text-red-400 hover:bg-red-500/10 w-8 h-8 rounded-lg"
+                  data-ocid={`calling.delete_button.${i + 1}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          {contacts.length === 0 && (
+            <div
+              className="text-center text-muted-foreground py-10"
+              data-ocid="calling.empty_state"
+            >
+              <Phone className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No contacts yet. Tap + to add.</p>
+            </div>
           )}
         </div>
       </div>
@@ -5214,6 +5698,28 @@ function AppInner() {
               transition={{ duration: 0.3 }}
             >
               <PrayerScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "indian-songs" && (
+            <motion.div
+              key="indian-songs"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <IndianSongsScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "calling" && (
+            <motion.div
+              key="calling"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CallingScreen onBack={() => navigate("home")} />
             </motion.div>
           )}
           {screen === "group-chat" && (
