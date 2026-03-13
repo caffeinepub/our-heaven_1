@@ -5405,7 +5405,17 @@ function AppInner() {
 
   const navigate = useCallback(
     (s: Screen) => {
-      // When navigating to messages, clear the badge and record current count
+      // When navigating to any chat/message screen, clear the unread badge
+      // and also mark all notifications as read so the red dot disappears
+      const chatScreens: Screen[] = [
+        "messages",
+        "group-chat",
+        "your-ideas",
+        "notifications",
+      ];
+      if (chatScreens.includes(s)) {
+        markAllNotifsRead();
+      }
       if (s === "messages") {
         setUnreadMessages(0);
         if (actor) {
@@ -5413,13 +5423,10 @@ function AppInner() {
             .getAllMessages()
             .then((msgs) => {
               lastSeenCountRef.current = msgs.length;
+              lastNotifMsgCountRef.current = msgs.length;
             })
             .catch(() => {});
         }
-      }
-      // Mark all notifications read when opening notifications screen
-      if (s === "notifications") {
-        markAllNotifsRead();
       }
       setScreen(s);
     },

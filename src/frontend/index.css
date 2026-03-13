@@ -22,59 +22,58 @@
   :root {
     --radius: 1rem;
 
-    /* Our Heaven — Aurora Heaven Theme */
-    /* Deep violet-teal aurora with gold/amber accents */
-    --background: 0.09 0.03 280;
-    --foreground: 0.96 0.03 75;
+    /* Our Heaven — Deep Space Yellow Theme */
+    --background: 0.07 0.01 90;
+    --foreground: 0.97 0.05 85;
 
-    --card: 0.15 0.05 285;
-    --card-foreground: 0.96 0.03 75;
+    --card: 0.13 0.03 85;
+    --card-foreground: 0.97 0.05 85;
 
-    --popover: 0.17 0.05 285;
-    --popover-foreground: 0.96 0.03 75;
+    --popover: 0.15 0.03 85;
+    --popover-foreground: 0.97 0.05 85;
 
-    /* Gold/amber primary */
-    --primary: 0.80 0.15 75;
-    --primary-foreground: 0.12 0.02 280;
+    /* Bright yellow primary */
+    --primary: 0.85 0.20 80;
+    --primary-foreground: 0.08 0.02 85;
 
-    --secondary: 0.18 0.04 270;
-    --secondary-foreground: 0.90 0.03 75;
+    --secondary: 0.16 0.04 80;
+    --secondary-foreground: 0.92 0.05 85;
 
-    --muted: 0.16 0.02 275;
-    --muted-foreground: 0.60 0.05 75;
+    --muted: 0.14 0.02 80;
+    --muted-foreground: 0.62 0.06 80;
 
-    /* Warm gold accent */
-    --accent: 0.75 0.18 65;
-    --accent-foreground: 0.10 0.02 280;
+    /* Warm amber accent */
+    --accent: 0.78 0.20 65;
+    --accent-foreground: 0.08 0.02 80;
 
     --destructive: 0.65 0.22 22;
     --destructive-foreground: 0.98 0 0;
 
-    --border: 0.25 0.05 270;
-    --input: 0.20 0.04 275;
-    --ring: 0.75 0.15 75;
+    --border: 0.22 0.05 80;
+    --input: 0.18 0.04 80;
+    --ring: 0.80 0.18 80;
 
-    --chart-1: 0.80 0.15 75;
-    --chart-2: 0.65 0.15 260;
-    --chart-3: 0.70 0.18 150;
-    --chart-4: 0.75 0.20 30;
-    --chart-5: 0.60 0.18 320;
+    --chart-1: 0.85 0.20 80;
+    --chart-2: 0.70 0.18 60;
+    --chart-3: 0.75 0.20 100;
+    --chart-4: 0.80 0.22 40;
+    --chart-5: 0.65 0.18 50;
 
-    --sidebar: 0.12 0.03 278;
-    --sidebar-foreground: 0.90 0.04 75;
-    --sidebar-primary: 0.80 0.15 75;
-    --sidebar-primary-foreground: 0.10 0.02 280;
-    --sidebar-accent: 0.18 0.04 270;
-    --sidebar-accent-foreground: 0.90 0.04 75;
-    --sidebar-border: 0.25 0.05 270;
-    --sidebar-ring: 0.75 0.15 75;
+    --sidebar: 0.10 0.02 85;
+    --sidebar-foreground: 0.92 0.05 85;
+    --sidebar-primary: 0.85 0.20 80;
+    --sidebar-primary-foreground: 0.08 0.02 85;
+    --sidebar-accent: 0.16 0.04 80;
+    --sidebar-accent-foreground: 0.92 0.05 85;
+    --sidebar-border: 0.22 0.05 80;
+    --sidebar-ring: 0.80 0.18 80;
 
     /* Custom tokens */
-    --gold: 0.80 0.18 75;
-    --gold-dim: 0.65 0.12 75;
-    --deep-space: 0.08 0.03 285;
-    --starlight: 0.95 0.04 75;
-    --nebula: 0.30 0.08 275;
+    --gold: 0.85 0.20 80;
+    --gold-dim: 0.68 0.14 78;
+    --deep-space: 0.06 0.01 85;
+    --starlight: 0.97 0.05 85;
+    --nebula: 0.20 0.06 78;
   }
 
   * {
@@ -121,7 +120,7 @@
   }
 
   .glow-gold-sm {
-    box-shadow: 0 0 10px oklch(var(--gold) / 0.3);
+    box-shadow: 0 0 10px oklch(var(--gold) / 0.35);
   }
 
   .text-glow-gold {
@@ -130,20 +129,20 @@
 
   .celestial-bg {
     background:
-      radial-gradient(ellipse 120% 60% at 10% 0%, oklch(0.28 0.12 310 / 0.55) 0%, transparent 55%),
-      radial-gradient(ellipse 80% 50% at 90% 10%, oklch(0.26 0.14 180 / 0.45) 0%, transparent 50%),
-      radial-gradient(ellipse 100% 70% at 50% 100%, oklch(0.20 0.10 260 / 0.50) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 75% 55%, oklch(0.24 0.16 75 / 0.20) 0%, transparent 50%),
-      linear-gradient(160deg, oklch(0.10 0.04 300) 0%, oklch(0.08 0.03 250) 50%, oklch(0.07 0.02 220) 100%);
+      radial-gradient(ellipse 120% 60% at 10% 0%, oklch(0.22 0.10 80 / 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 80% 50% at 90% 10%, oklch(0.28 0.14 65 / 0.14) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 70% at 50% 100%, oklch(0.18 0.08 85 / 0.20) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 75% 55%, oklch(0.30 0.16 75 / 0.10) 0%, transparent 50%),
+      linear-gradient(160deg, oklch(0.07 0.01 85) 0%, oklch(0.06 0.01 80) 50%, oklch(0.05 0.01 75) 100%);
   }
 
   .card-celestial {
     background: linear-gradient(
       135deg,
-      oklch(0.17 0.06 290 / 0.88) 0%,
-      oklch(0.13 0.04 270 / 0.94) 100%
+      oklch(0.14 0.04 82 / 0.88) 0%,
+      oklch(0.11 0.02 80 / 0.94) 100%
     );
-    border: 1px solid oklch(var(--gold) / 0.22);
+    border: 1px solid oklch(var(--gold) / 0.25);
     backdrop-filter: blur(16px);
   }
 }
