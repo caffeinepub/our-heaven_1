@@ -931,131 +931,6 @@ function HomeScreen({
     }
   };
 
-  const featureBoxes: Array<{
-    screen: Screen;
-    icon: React.ComponentType<{ className?: string }>;
-    label: string;
-    desc: string;
-  }> = [
-    { screen: "rules", icon: Shield, label: "Rules", desc: "Community rules" },
-    {
-      screen: "quiz",
-      icon: HelpCircle,
-      label: "Quiz Box",
-      desc: "Test your knowledge!",
-    },
-    {
-      screen: "games",
-      icon: Gamepad2,
-      label: "Games",
-      desc: "Play mini-games!",
-    },
-    {
-      screen: "notifications",
-      icon: Bell,
-      label: "Notifications",
-      desc: "All messages & updates",
-    },
-    {
-      screen: "messages",
-      icon: MessageSquare,
-      label: "Messages",
-      desc: "Chat with friends",
-    },
-    {
-      screen: "group-chat",
-      icon: MessageCircle,
-      label: "Group Chat",
-      desc: "Everyone talks here",
-    },
-    {
-      screen: "important-messages",
-      icon: Bell,
-      label: "Important Messages",
-      desc: "Stay informed",
-    },
-    {
-      screen: "your-ideas",
-      icon: Lightbulb,
-      label: "Your Ideas",
-      desc: "Share your thoughts",
-    },
-    {
-      screen: "home-works",
-      icon: BookOpen,
-      label: "Home Works",
-      desc: "Homework assignments",
-    },
-    {
-      screen: "school-works",
-      icon: GraduationCap,
-      label: "School Works",
-      desc: "Textbooks & resources",
-    },
-    {
-      screen: "stars",
-      icon: Star,
-      label: "Star of the Month",
-      desc: "Monthly highlights",
-    },
-    {
-      screen: "birthdays",
-      icon: Cake,
-      label: "Birthday Dates",
-      desc: "Celebrate together",
-    },
-    { screen: "meet", icon: Video, label: "Meet", desc: "Join meetings" },
-    {
-      screen: "attendance",
-      icon: ClipboardList,
-      label: "Attendance & Level",
-      desc: "Track attendance",
-    },
-    {
-      screen: "photos",
-      icon: ImageIcon,
-      label: "Photos",
-      desc: "Our memories",
-    },
-    {
-      screen: "calendar",
-      icon: CalendarDays,
-      label: "Dates & Calendar",
-      desc: "Important dates",
-    },
-    { screen: "prayer", icon: Heart, label: "Prayer", desc: "Our prayers" },
-    {
-      screen: "indian-songs",
-      icon: Music2,
-      label: "Indian Songs & Prayers",
-      desc: "Devotional songs & prayers",
-    },
-    {
-      screen: "calling",
-      icon: Phone,
-      label: "Calling",
-      desc: "Member phone directory",
-    },
-    {
-      screen: "whatsapp",
-      icon: MessageCircle,
-      label: "WhatsApp Group",
-      desc: "Join our group",
-    },
-    {
-      screen: "youtube",
-      icon: Youtube,
-      label: "YouTube Channel",
-      desc: "Watch our videos",
-    },
-    {
-      screen: "settings" as Screen,
-      icon: Settings,
-      label: "Settings",
-      desc: "App settings & preferences",
-    },
-  ];
-
   return (
     <div className="relative min-h-screen celestial-bg overflow-y-auto">
       <StarsBackground />
@@ -1135,46 +1010,215 @@ function HomeScreen({
           </div>
         </motion.div>
 
-        {/* Feature Boxes */}
-        <div className="space-y-3">
-          {featureBoxes.map(({ screen, icon: Icon, label, desc }, i) => (
-            <motion.button
-              key={screen}
-              onClick={() =>
-                screen === "settings"
-                  ? setSettingsOpen(true)
-                  : onNavigate(screen)
-              }
-              className="w-full card-celestial rounded-2xl p-4 flex items-center gap-4 hover:border-gold/40 transition-all duration-200 hover:glow-gold-sm text-left"
-              initial={{ opacity: 0, x: -15 }}
+        {/* Feature Boxes — 4-column grid grouped by section */}
+        {(
+          [
+            {
+              title: "Community",
+              emoji: "💬",
+              items: [
+                {
+                  screen: "messages",
+                  icon: MessageSquare,
+                  label: "Messages",
+                  badge: unreadCount,
+                },
+                {
+                  screen: "group-chat",
+                  icon: MessageCircle,
+                  label: "Group Chat",
+                  badge: 0,
+                },
+                {
+                  screen: "your-ideas",
+                  icon: Lightbulb,
+                  label: "Your Ideas",
+                  badge: 0,
+                },
+                {
+                  screen: "notifications",
+                  icon: Bell,
+                  label: "Notifications",
+                  badge: notificationCount,
+                },
+                {
+                  screen: "important-messages",
+                  icon: Bell,
+                  label: "Important Messages",
+                  badge: 0,
+                },
+                {
+                  screen: "whatsapp",
+                  icon: MessageCircle,
+                  label: "WhatsApp Group",
+                  badge: 0,
+                },
+              ],
+            },
+            {
+              title: "Learning",
+              emoji: "📚",
+              items: [
+                {
+                  screen: "quiz",
+                  icon: HelpCircle,
+                  label: "Quiz Box",
+                  badge: 0,
+                },
+                {
+                  screen: "school-works",
+                  icon: GraduationCap,
+                  label: "School Works",
+                  badge: 0,
+                },
+                {
+                  screen: "home-works",
+                  icon: BookOpen,
+                  label: "Home Works",
+                  badge: 0,
+                },
+                {
+                  screen: "calendar",
+                  icon: CalendarDays,
+                  label: "Dates & Calendar",
+                  badge: 0,
+                },
+                {
+                  screen: "attendance",
+                  icon: ClipboardList,
+                  label: "Attendance & Level",
+                  badge: 0,
+                },
+              ],
+            },
+            {
+              title: "Activities",
+              emoji: "🎮",
+              items: [
+                { screen: "games", icon: Gamepad2, label: "Games", badge: 0 },
+                { screen: "prayer", icon: Heart, label: "Prayer", badge: 0 },
+                {
+                  screen: "indian-songs",
+                  icon: Music2,
+                  label: "Indian Songs & Prayers",
+                  badge: 0,
+                },
+                {
+                  screen: "photos",
+                  icon: ImageIcon,
+                  label: "Photos",
+                  badge: 0,
+                },
+                {
+                  screen: "youtube",
+                  icon: Youtube,
+                  label: "YouTube Channel",
+                  badge: 0,
+                },
+              ],
+            },
+            {
+              title: "People",
+              emoji: "👥",
+              items: [
+                { screen: "rules", icon: Shield, label: "Rules", badge: 0 },
+                {
+                  screen: "birthdays",
+                  icon: Cake,
+                  label: "Birthday Dates",
+                  badge: 0,
+                },
+                {
+                  screen: "stars",
+                  icon: Star,
+                  label: "Star of the Month",
+                  badge: 0,
+                },
+                { screen: "meet", icon: Video, label: "Meet", badge: 0 },
+                { screen: "calling", icon: Phone, label: "Calling", badge: 0 },
+              ],
+            },
+            {
+              title: "Settings",
+              emoji: "⚙️",
+              items: [
+                {
+                  screen: "settings" as Screen,
+                  icon: Settings,
+                  label: "Settings",
+                  badge: 0,
+                },
+              ],
+            },
+          ] as Array<{
+            title: string;
+            emoji: string;
+            items: Array<{
+              screen: Screen;
+              icon: React.ComponentType<{ className?: string }>;
+              label: string;
+              badge: number;
+            }>;
+          }>
+        ).map((section, si) => (
+          <div key={section.title} className="mb-5">
+            {/* Section Header */}
+            <motion.div
+              className="flex items-center gap-2 mb-3"
+              initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 + i * 0.08 }}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
+              transition={{ delay: 0.15 + si * 0.06 }}
             >
-              <div className="relative w-11 h-11 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center flex-shrink-0">
-                <Icon className="w-5 h-5 text-gold" />
-                {screen === "messages" && unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg">
-                    {unreadCount > 99 ? "99+" : unreadCount}
+              <span className="text-base">{section.emoji}</span>
+              <span className="font-display font-bold text-gold text-sm tracking-wide uppercase">
+                {section.title}
+              </span>
+              <div className="flex-1 h-px bg-gold/20 ml-1" />
+            </motion.div>
+
+            {/* Grid */}
+            <div className="grid grid-cols-4 gap-2">
+              {section.items.map(({ screen, icon: Icon, label, badge }, i) => (
+                <motion.button
+                  key={screen}
+                  type="button"
+                  onClick={() =>
+                    screen === "settings"
+                      ? setSettingsOpen(true)
+                      : onNavigate(screen)
+                  }
+                  className="relative flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 px-1 bg-white/10 backdrop-blur-sm border border-white/15 hover:border-gold/50 hover:bg-gold/10 transition-all duration-200 active:scale-95 text-center"
+                  style={{ minHeight: 76 }}
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{
+                    delay: 0.2 + si * 0.06 + i * 0.04,
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 20,
+                  }}
+                  whileTap={{ scale: 0.93 }}
+                  data-ocid={`home.${screen.replace(/-/g, "_")}.button`}
+                >
+                  {/* Badge */}
+                  {badge > 0 && (
+                    <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 shadow">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                  {/* Icon */}
+                  <div className="w-9 h-9 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center">
+                    <Icon className="w-[18px] h-[18px] text-gold" />
+                  </div>
+                  {/* Label */}
+                  <span className="text-[10px] leading-tight text-foreground font-medium px-0.5 line-clamp-2">
+                    {label}
                   </span>
-                )}
-                {screen === "notifications" && notificationCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg">
-                    {notificationCount > 99 ? "99+" : notificationCount}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-semibold text-foreground">
-                  {label}
-                </p>
-                <p className="text-muted-foreground text-sm">{desc}</p>
-              </div>
-              <ArrowLeft className="w-4 h-4 text-gold/50 rotate-180 flex-shrink-0" />
-            </motion.button>
-          ))}
-        </div>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        ))}
 
         {/* Footer */}
         <div className="text-center text-muted-foreground text-xs mt-8">
@@ -1430,6 +1474,12 @@ function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
 
   const start = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error(
+          "Voice recording requires microphone permission. Please allow microphone access and try again.",
+        );
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       mediaRef.current = mr;
@@ -1501,22 +1551,29 @@ function ChatInputBar({
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      onMediaSend({
-        type: "image",
-        content: reader.result as string,
-        mimeType: file.type,
-        name: file.name,
-      });
-      setMenuOpen(false);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        onMediaSend({
+          type: "image",
+          content: reader.result as string,
+          mimeType: file.type,
+          name: file.name,
+        });
+        setMenuOpen(false);
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read photo. Please try again.");
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast.error("Failed to load photo. Please try again.");
+    }
     e.target.value = "";
   };
 
   return (
-    <div className="relative flex gap-2 pb-6">
+    <div className="relative flex gap-2 pb-6 flex-shrink-0">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -1789,6 +1846,13 @@ function MessagesScreen({
       }),
     };
     setLocalMediaMsgs((prev) => [...prev, newMsg]);
+    if (actor) {
+      const label =
+        media.type === "voice"
+          ? `🎤 Voice message from ${user.firstName}`
+          : `📷 Photo from ${user.firstName}`;
+      actor.sendMessage(user.firstName, label).catch(() => {});
+    }
     toast.success(
       media.type === "image" ? "Photo sent!" : "Voice message sent!",
     );
@@ -1813,7 +1877,7 @@ function MessagesScreen({
         <SubPageHeader title="Chat with Friends" onBack={onBack} />
 
         <div className="relative flex-1 min-h-0">
-          <div ref={scrollRef} className="h-full overflow-y-auto mb-4">
+          <div ref={scrollRef} className="h-full overflow-y-auto mb-0">
             {loading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-8 h-8 text-gold animate-spin" />
@@ -4092,6 +4156,13 @@ function GroupChatScreen({
       }),
     };
     setLocalMediaMsgs((prev) => [...prev, newMsg]);
+    if (actor) {
+      const label =
+        media.type === "voice"
+          ? `🎤 Voice message from ${user.firstName}`
+          : `📷 Photo from ${user.firstName}`;
+      actor.sendMessage(user.firstName, label).catch(() => {});
+    }
     toast.success(
       media.type === "image" ? "Photo sent!" : "Voice message sent!",
     );
@@ -4114,7 +4185,7 @@ function GroupChatScreen({
         <SubPageHeader title="Group Chat" onBack={onBack} />
 
         <div className="relative flex-1 min-h-0">
-          <div ref={scrollRef} className="h-full overflow-y-auto mb-4">
+          <div ref={scrollRef} className="h-full overflow-y-auto mb-0">
             {loading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-8 h-8 text-gold animate-spin" />
@@ -5418,6 +5489,8 @@ function AppInner() {
       }
       if (s === "messages") {
         setUnreadMessages(0);
+        lastSeenCountRef.current = Number.MAX_SAFE_INTEGER;
+        lastNotifMsgCountRef.current = Number.MAX_SAFE_INTEGER;
         if (actor) {
           actor
             .getAllMessages()

@@ -103,33 +103,21 @@ actor {
     photos.remove(id);
   };
 
-  // User Profile Management (Required by frontend)
+  // User Profile Management - open to all (app uses form-based login, not Internet Identity)
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view profiles");
-    };
     userProfiles.get(caller);
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
-    };
     userProfiles.get(user);
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
-    };
     userProfiles.add(caller, profile);
   };
 
-  // Account Management - Requires user authentication
+  // Account Management - open to all (form-based auth, no Internet Identity)
   public shared ({ caller }) func registerAccount(firstName : Text, lastName : Text, dob : Text, phone : Text, password : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can register accounts");
-    };
     if (accounts.containsKey(phone)) {
       Runtime.trap("Account already exists");
     };
@@ -144,9 +132,6 @@ actor {
   };
 
   public shared ({ caller }) func updateAccount(phone : Text, firstName : Text, lastName : Text, dob : Text, password : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update accounts");
-    };
     switch (accounts.get(phone)) {
       case (null) { Runtime.trap("Account does not exist") };
       case (?_) {
@@ -163,9 +148,6 @@ actor {
   };
 
   public query ({ caller }) func getAccount(phone : Text) : async Account {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view accounts");
-    };
     switch (accounts.get(phone)) {
       case (null) { Runtime.trap("Account does not exist") };
       case (?account) { account };
@@ -173,13 +155,10 @@ actor {
   };
 
   public query ({ caller }) func getAllAccounts() : async [Account] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view accounts");
-    };
     accounts.values().toArray();
   };
 
-  // OTP Verification - Available to guests (for registration flow)
+  // OTP Verification
   public shared ({ caller }) func generateOTP(phone : Text) : async Nat {
     let code = 100_000 + (Time.now() % 900_000).toNat();
     let otp : OTP = {
@@ -207,11 +186,8 @@ actor {
     };
   };
 
-  // Chat Messages - Users can send, anyone can read
+  // Chat Messages - open to all members
   public shared ({ caller }) func sendMessage(sender : Text, content : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can send messages");
-    };
     let message : Message = {
       sender;
       content;
@@ -303,12 +279,8 @@ actor {
     meetLinks.values().toArray();
   };
 
-  // Important Messages - Custom authorization (Aaron/Nevveen) + role-based
+  // Important Messages - open to all, but only Aaron/Nevveen by name check
   public shared ({ caller }) func addImportantMessage(content : Text, author : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can add important messages");
-    };
-
     let lowerAuthor = author.map(
       func(c) {
         if (c >= 'A' and c <= 'Z') {
@@ -332,10 +304,6 @@ actor {
   };
 
   public shared ({ caller }) func updateImportantMessage(id : Nat, content : Text, author : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update important messages");
-    };
-
     switch (importantMessages.get(id)) {
       case (null) { Runtime.trap("Message does not exist") };
       case (?_) {
@@ -363,9 +331,6 @@ actor {
   };
 
   public shared ({ caller }) func dismissImportantMessage(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can dismiss important messages");
-    };
     switch (importantMessages.get(id)) {
       case (null) { Runtime.trap("Message does not exist") };
       case (?message) {
