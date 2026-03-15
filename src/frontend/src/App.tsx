@@ -52,6 +52,7 @@ import {
   Star,
   Trash2,
   User,
+  Users,
   Video,
   X,
   Youtube,
@@ -105,6 +106,8 @@ type Screen =
   | "group-chat"
   | "home-works"
   | "notifications"
+  | "all-persons"
+  | "messaging-hub"
   | "settings";
 
 interface NotificationItem {
@@ -1018,7 +1021,13 @@ function HomeScreen({
               emoji: "💬",
               items: [
                 {
-                  screen: "messages",
+                  screen: "all-persons",
+                  icon: Users,
+                  label: "All Persons",
+                  badge: 0,
+                },
+                {
+                  screen: "messaging-hub",
                   icon: MessageSquare,
                   label: "Messages",
                   badge: unreadCount,
@@ -1459,7 +1468,7 @@ function SubPageHeader({
 // ─── Chat Attachment Menu ──────────────────────────────────────────────────────
 
 interface ChatMediaMessage {
-  type: "image" | "voice";
+  type: "image" | "voice" | "video";
   content: string; // data URL for image, blob URL for voice
   mimeType: string;
   name: string;
@@ -1537,6 +1546,31 @@ function ChatInputBar({
 }: ChatInputBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        onMediaSend({
+          type: "video",
+          content: reader.result as string,
+          mimeType: file.type,
+          name: file.name,
+        });
+        setMenuOpen(false);
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read video. Please try again.");
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast.error("Failed to load video. Please try again.");
+    }
+    e.target.value = "";
+  };
 
   const {
     recording,
@@ -1582,6 +1616,16 @@ function ChatInputBar({
         className="hidden"
         onChange={handlePhotoSelect}
         data-ocid={`${ocidPrefix}.photo_upload.input`}
+      />
+
+      {/* Hidden video input */}
+      <input
+        ref={videoFileInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={handleVideoSelect}
+        data-ocid={`${ocidPrefix}.video_upload_button`}
       />
 
       {/* Attachment popup menu */}
@@ -1642,6 +1686,19 @@ function ChatInputBar({
                   </span>
                 )}
               </div>
+            </button>
+
+            {/* Video */}
+            <button
+              type="button"
+              onClick={() => videoFileInputRef.current?.click()}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gold/10 transition-colors text-left"
+              data-ocid={`${ocidPrefix}.video_upload_button`}
+            >
+              <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                <Video className="w-4 h-4 text-purple-400" />
+              </div>
+              <span className="text-foreground text-sm font-medium">Video</span>
             </button>
           </motion.div>
         )}
@@ -1707,6 +1764,7 @@ function ChatBubble({
   onDelete?: () => void;
 }) {
   const isImageData = msg.content.startsWith("data:image");
+  const isVideoData = msg.content.startsWith("data:video");
   const isVoiceBlob =
     msg.content.startsWith("blob:") || msg.content.startsWith("[voice]");
 
@@ -1729,6 +1787,13 @@ function ChatBubble({
             src={msg.content}
             alt="sent"
             className="max-w-full max-h-48 object-contain block"
+          />
+        ) : isVideoData ? (
+          /* biome-ignore lint/a11y/useMediaCaption: user-uploaded video, no transcript available */
+          <video
+            controls
+            src={msg.content}
+            className="max-w-full max-h-48 block rounded"
           />
         ) : isVoiceBlob ? (
           <div className="flex items-center gap-2 px-3 py-2">
@@ -1850,11 +1915,17 @@ function MessagesScreen({
       const label =
         media.type === "voice"
           ? `🎤 Voice message from ${user.firstName}`
-          : `📷 Photo from ${user.firstName}`;
+          : media.type === "video"
+            ? `🎥 Video from ${user.firstName}`
+            : `📷 Photo from ${user.firstName}`;
       actor.sendMessage(user.firstName, label).catch(() => {});
     }
     toast.success(
-      media.type === "image" ? "Photo sent!" : "Voice message sent!",
+      media.type === "image"
+        ? "Photo sent!"
+        : media.type === "video"
+          ? "Video sent!"
+          : "Voice message sent!",
     );
     setTimeout(() => {
       if (scrollRef.current)
@@ -3928,6 +3999,191 @@ interface ContactEntry {
   phone: string;
 }
 
+// ─── All Persons Screen ───────────────────────────────────────────────────────
+
+function AllPersonsScreen({ onBack }: { onBack: () => void }) {
+  const actor = useBackendActor();
+  const [accounts, setAccounts] = useState<
+    Array<{ firstName: string; lastName: string; phone: string }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!actor) return;
+    actor
+      .getAllAccounts()
+      .then((list) => {
+        setAccounts(list);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [actor]);
+
+  const filtered = accounts.filter((a) => {
+    const full = `${a.firstName} ${a.lastName}`.toLowerCase();
+    return full.includes(search.toLowerCase()) || a.phone.includes(search);
+  });
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="All Persons" onBack={onBack} />
+        <div className="mb-4">
+          <input
+            data-ocid="all_persons.search_input"
+            className="w-full px-4 py-2 rounded-xl border border-gold/40 bg-black/40 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold/60 text-sm"
+            placeholder="Search by name or phone…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        {loading ? (
+          <div
+            data-ocid="all_persons.loading_state"
+            className="flex items-center justify-center py-16"
+          >
+            <Loader2 className="w-8 h-8 animate-spin text-gold" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div
+            data-ocid="all_persons.empty_state"
+            className="text-center py-16 text-muted-foreground"
+          >
+            <Users className="w-12 h-12 mx-auto mb-3 opacity-40 text-gold" />
+            <p className="font-semibold">No members found</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((a, i) => (
+              <div
+                key={`person-${a.phone}-${i}`}
+                data-ocid={`all_persons.item.${i + 1}`}
+                className="flex items-center justify-between bg-black/40 border border-gold/20 rounded-xl px-4 py-3 hover:border-gold/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold text-sm">
+                    {a.firstName[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <span className="font-semibold text-foreground text-sm">
+                    {a.firstName} {a.lastName}
+                  </span>
+                </div>
+                <a
+                  href={`tel:${a.phone}`}
+                  className="flex items-center gap-1 text-gold text-sm font-mono hover:underline"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  {a.phone}
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Messaging Hub Screen ─────────────────────────────────────────────────────
+
+type MessagingTab = "chats" | "updates" | "groups" | "calls";
+
+function MessagingHubScreen({
+  user,
+  onBack,
+  unreadMessages,
+  notificationCount,
+  notifications,
+  onMarkAllRead,
+  onDismissOne,
+}: {
+  user: UserData;
+  onBack: () => void;
+  unreadMessages: number;
+  notificationCount: number;
+  notifications: NotificationItem[];
+  onMarkAllRead: () => void;
+  onDismissOne: (id: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<MessagingTab>("chats");
+
+  const tabs: {
+    id: MessagingTab;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge: number;
+  }[] = [
+    { id: "chats", label: "Chats", icon: MessageSquare, badge: unreadMessages },
+    { id: "updates", label: "Updates", icon: Bell, badge: notificationCount },
+    { id: "groups", label: "Groups", icon: Users, badge: 0 },
+    { id: "calls", label: "Calls", icon: Phone, badge: 0 },
+  ];
+
+  return (
+    <div className="relative min-h-screen celestial-bg flex flex-col">
+      <StarsBackground />
+      <div className="relative z-10 flex-1 overflow-y-auto pb-20">
+        {activeTab === "chats" && (
+          <MessagesScreen user={user} onBack={onBack} />
+        )}
+        {activeTab === "updates" && (
+          <NotificationsScreen
+            notifications={notifications}
+            onMarkAllRead={onMarkAllRead}
+            onDismissOne={onDismissOne}
+            onBack={onBack}
+          />
+        )}
+        {activeTab === "groups" && (
+          <GroupChatScreen user={user} onBack={onBack} />
+        )}
+        {activeTab === "calls" && <CallingScreen onBack={onBack} />}
+      </div>
+      {/* Bottom tab bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-black/90 border-t border-gold/30 backdrop-blur-md">
+        <div className="flex items-center justify-around max-w-lg mx-auto px-2 py-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                data-ocid={`messaging_hub.${tab.id}.tab`}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition-all duration-200 min-w-[60px] ${
+                  isActive ? "bg-gold/20" : "hover:bg-gold/10"
+                }`}
+              >
+                <div className="relative">
+                  <Icon
+                    className={`w-5 h-5 ${isActive ? "text-gold" : "text-muted-foreground"}`}
+                  />
+                  {tab.badge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-0.5">
+                      {tab.badge > 99 ? "99+" : tab.badge}
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`text-[10px] font-semibold ${isActive ? "text-gold" : "text-muted-foreground"}`}
+                >
+                  {tab.label}
+                </span>
+                {isActive && (
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gold" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CallingScreen({ onBack }: { onBack: () => void }) {
   const [contacts, setContacts] = useState<ContactEntry[]>([
     { id: "1", name: "Aaron David Jojo", phone: "" },
@@ -4160,11 +4416,17 @@ function GroupChatScreen({
       const label =
         media.type === "voice"
           ? `🎤 Voice message from ${user.firstName}`
-          : `📷 Photo from ${user.firstName}`;
+          : media.type === "video"
+            ? `🎥 Video from ${user.firstName}`
+            : `📷 Photo from ${user.firstName}`;
       actor.sendMessage(user.firstName, label).catch(() => {});
     }
     toast.success(
-      media.type === "image" ? "Photo sent!" : "Voice message sent!",
+      media.type === "image"
+        ? "Photo sent!"
+        : media.type === "video"
+          ? "Video sent!"
+          : "Voice message sent!",
     );
     setTimeout(() => {
       if (scrollRef.current)
@@ -5843,6 +6105,36 @@ function AppInner() {
                 onMarkAllRead={markAllNotifsRead}
                 onDismissOne={dismissOneNotif}
                 onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "all-persons" && (
+            <motion.div
+              key="all-persons"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AllPersonsScreen onBack={() => navigate("home")} />
+            </motion.div>
+          )}
+          {screen === "messaging-hub" && (
+            <motion.div
+              key="messaging-hub"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <MessagingHubScreen
+                user={userData}
+                onBack={() => navigate("home")}
+                unreadMessages={unreadMessages}
+                notificationCount={unreadNotifCount}
+                notifications={notifications}
+                onMarkAllRead={markAllNotifsRead}
+                onDismissOne={dismissOneNotif}
               />
             </motion.div>
           )}

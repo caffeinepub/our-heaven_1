@@ -1,23 +1,30 @@
 # Our Heaven
 
 ## Current State
-The app has 17+ feature boxes on the homepage. Screen type and home boxes array are in App.tsx. Rules is 1st, Quiz is 2nd. No Games box exists.
+- App has 22+ feature boxes in a 4-column grid with section headers (Community, Learning, Activities, People, Settings)
+- Community section includes Messages, Group Chat, Your Ideas, Notifications, Important Messages, WhatsApp Group
+- People section includes Rules, Birthday Dates, Star of the Month, Meet, Calling
+- Microphone code exists (useVoiceRecorder) but browser permissions policy may block it
+- getAllAccounts() backend function exists returning all Account records with firstName, lastName, phone fields
 
 ## Requested Changes (Diff)
 
 ### Add
-- `"games"` to the Screen type union
-- Games box as 3rd item in home boxes (after Rules and Quiz)
-- `GamesScreen` component with SOS, Tic-Tac-Toe, Memory Match, Number Puzzle
+- **All Persons box** in the Community section (first section): shows all registered members' full name and phone number pulled from getAllAccounts()
+- **WhatsApp-style bottom tab bar** inside the Messages/chat boxes: 4 tabs — Chats (Messages), Updates (Notifications), Groups (Group Chat), Calls (Calling) — with yellow/gold active pill highlight and unread badge counts on relevant tabs
+- **Microphone permissions policy** in index.html to allow microphone access in the web app
 
 ### Modify
-- Screen type, homeBoxes array, app render switch
+- Community section: add All Persons box item
+- App routing: Messages/Group Chat/Calling boxes navigated from the new tab bar
+- index.html: add `<meta>` or `allow` attribute for microphone
 
 ### Remove
 - Nothing
 
 ## Implementation Plan
-1. Add `"games"` to Screen type
-2. Insert Games box at index 2 in homeBoxes
-3. Implement GamesScreen with game menu and 4 mini-games
-4. Wire navigation in render block
+1. Add `<meta http-equiv="Permissions-Policy" content="microphone=*">` to index.html to enable mic
+2. Create AllPersonsScreen component that calls actor.getAllAccounts() and displays name + phone for each
+3. Add 'all-persons' screen/route and add the box to the Community section items list
+4. Create a MessagingHub component with a WhatsApp-style bottom tab bar (4 tabs: Chats, Updates, Groups, Calls) in yellow/gold theme with badge counts, that renders the appropriate sub-screen based on active tab
+5. Wire the Messages box to open MessagingHub instead of MessagesScreen directly
