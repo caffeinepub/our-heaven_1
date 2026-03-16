@@ -3,7 +3,6 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -1475,119 +1474,21 @@ interface ChatMediaMessage {
   name: string;
 }
 
-// ─── Microphone Blocked Dialog ──────────────────────────────────────────────
-function MicrophoneBlockedDialog({
-  open,
-  onClose,
-  reason,
-}: {
-  open: boolean;
-  onClose: () => void;
-  reason: "denied" | "no-https" | null;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent
-        className="max-w-sm border-amber-500/30 bg-gray-950 text-amber-50"
-        data-ocid="mic.dialog"
-      >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-amber-400">
-            <span>🎤</span>{" "}
-            {reason === "no-https"
-              ? "Secure Connection Required"
-              : "Microphone Blocked"}
-          </DialogTitle>
-          <DialogDescription className="text-amber-100/70">
-            {reason === "no-https"
-              ? "Voice recording requires a secure HTTPS connection."
-              : "Your browser has blocked microphone access for this app."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 py-2 text-sm text-amber-100/90">
-          {reason === "no-https" ? (
-            <p>Please contact the app owner to enable HTTPS, then try again.</p>
-          ) : (
-            <>
-              <p className="font-semibold text-amber-300">
-                To fix this, follow these steps:
-              </p>
-              <ol className="list-decimal space-y-2 pl-5">
-                <li>
-                  Tap the{" "}
-                  <span className="rounded bg-amber-900/40 px-1 font-mono">
-                    🔒
-                  </span>{" "}
-                  lock icon in your browser's address bar.
-                </li>
-                <li>
-                  Find <strong>Microphone</strong> in the permissions list.
-                </li>
-                <li>
-                  Change it from <em>Block</em> to{" "}
-                  <strong className="text-amber-400">Allow</strong>.
-                </li>
-                <li>Refresh the page and tap the microphone button again.</li>
-              </ol>
-            </>
-          )}
-        </div>
-        <DialogFooter>
-          <Button
-            onClick={onClose}
-            className="bg-amber-500 text-black hover:bg-amber-400"
-            data-ocid="mic.close_button"
-          >
-            Got it
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const [micBlockedReason, setMicBlockedReason] = useState<
-    "denied" | "no-https" | null
-  >(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const start = async () => {
-    // Check for non-HTTPS context
-    if (
-      typeof window !== "undefined" &&
-      window.location.protocol !== "https:" &&
-      window.location.hostname !== "localhost"
-    ) {
-      setMicBlockedReason("no-https");
-      return;
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setMicBlockedReason("no-https");
-      return;
-    }
-
-    // Check permission status if API available
-    if (navigator.permissions) {
-      try {
-        const perm = await navigator.permissions.query({
-          name: "microphone" as PermissionName,
-        });
-        if (perm.state === "denied") {
-          setMicBlockedReason("denied");
-          return;
-        }
-      } catch {
-        // permissions API not supported, fall through
-      }
-    }
-
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error(
+          "Voice recording requires microphone permission. Please allow microphone access and try again.",
+        );
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       mediaRef.current = mr;
@@ -1613,18 +1514,8 @@ function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
       setRecording(true);
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    } catch (err: unknown) {
-      const isPermDenied =
-        err instanceof DOMException &&
-        (err.name === "NotAllowedError" ||
-          err.name === "PermissionDeniedError");
-      if (isPermDenied) {
-        setMicBlockedReason("denied");
-      } else {
-        toast.error(
-          "Could not start recording. Please allow microphone access and try again.",
-        );
-      }
+    } catch {
+      toast.error("Microphone access denied");
     }
   };
 
@@ -1633,14 +1524,7 @@ function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  return {
-    recording,
-    seconds,
-    start,
-    stop,
-    micBlockedReason,
-    clearMicBlocked: () => setMicBlockedReason(null),
-  };
+  return { recording, seconds, start, stop };
 }
 
 interface ChatInputBarProps {
@@ -1693,8 +1577,6 @@ function ChatInputBar({
     seconds,
     start: startRecording,
     stop: stopRecording,
-    micBlockedReason,
-    clearMicBlocked,
   } = useVoiceRecorder((msg) => {
     onMediaSend(msg);
     setMenuOpen(false);
@@ -1726,11 +1608,6 @@ function ChatInputBar({
 
   return (
     <div className="relative flex gap-2 pb-6 flex-shrink-0">
-      <MicrophoneBlockedDialog
-        open={micBlockedReason !== null}
-        onClose={clearMicBlocked}
-        reason={micBlockedReason}
-      />
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -1962,8 +1839,6 @@ function MessagesScreen({
   onBack: () => void;
 }) {
   const actor = useBackendActor();
-  const [selectedContact, setSelectedContact] = useState<string | null>(null);
-  const [allSenders, setAllSenders] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [localMediaMsgs, setLocalMediaMsgs] = useState<
     Array<{ id: string; sender: string; content: string; time: string }>
@@ -1975,33 +1850,6 @@ function MessagesScreen({
   const [showScrollDown, setShowScrollDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // localStorage key for this private chat
-  const mediaKey = selectedContact
-    ? `our-heaven-media-msgs-${[user.firstName, selectedContact].sort().join("-")}`
-    : null;
-
-  // Load media messages from localStorage when contact selected
-  useEffect(() => {
-    if (!mediaKey) return;
-    try {
-      const stored = localStorage.getItem(mediaKey);
-      if (stored) setLocalMediaMsgs(JSON.parse(stored));
-    } catch {
-      // ignore
-    }
-  }, [mediaKey]);
-
-  // Persist media messages to localStorage
-  useEffect(() => {
-    if (!mediaKey) return;
-    try {
-      const limited = localMediaMsgs.slice(-50);
-      localStorage.setItem(mediaKey, JSON.stringify(limited));
-    } catch {
-      // ignore
-    }
-  }, [localMediaMsgs, mediaKey]);
-
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -2012,29 +1860,8 @@ function MessagesScreen({
   const loadMessages = useCallback(async () => {
     if (!actor) return;
     try {
-      const allMsgs = await actor.getAllMessages();
-      // Extract unique senders for contact picker
-      const senders = Array.from(
-        new Set(
-          allMsgs.map((m) => m.sender).filter((s) => s !== user.firstName),
-        ),
-      );
-      setAllSenders(senders);
-      if (selectedContact) {
-        // Filter to private chat: messages between currentUser and selectedContact
-        const filtered = allMsgs.filter((m) => {
-          const isFromMe =
-            m.sender === user.firstName &&
-            m.content.startsWith(`[to:${selectedContact}]`);
-          const isFromThem =
-            m.sender === selectedContact &&
-            m.content.startsWith(`[to:${user.firstName}]`);
-          return isFromMe || isFromThem;
-        });
-        setMessages(filtered);
-      } else {
-        setMessages([]);
-      }
+      const msgs = await actor.getAllMessages();
+      setMessages(msgs);
       setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -2045,7 +1872,7 @@ function MessagesScreen({
     } finally {
       setLoading(false);
     }
-  }, [actor, selectedContact, user.firstName]);
+  }, [actor]);
 
   useEffect(() => {
     loadMessages();
@@ -2059,13 +1886,10 @@ function MessagesScreen({
   }, [handleScroll]);
 
   const handleSend = async () => {
-    if (!input.trim() || !actor || !selectedContact) return;
+    if (!input.trim() || !actor) return;
     setSending(true);
     try {
-      await actor.sendMessage(
-        user.firstName,
-        `[to:${selectedContact}]${input.trim()}`,
-      );
+      await actor.sendMessage(user.firstName, input.trim());
       setInput("");
       await loadMessages();
     } catch {
@@ -2076,13 +1900,11 @@ function MessagesScreen({
   };
 
   const handleMediaSend = (media: ChatMediaMessage) => {
-    if (!selectedContact) return;
-    const rawContent =
-      media.type === "voice" ? `[voice]${media.content}` : media.content;
     const newMsg = {
       id: `media-${Date.now()}`,
       sender: user.firstName,
-      content: rawContent,
+      content:
+        media.type === "voice" ? `[voice]${media.content}` : media.content,
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -2096,9 +1918,7 @@ function MessagesScreen({
           : media.type === "video"
             ? `🎥 Video from ${user.firstName}`
             : `📷 Photo from ${user.firstName}`;
-      actor
-        .sendMessage(user.firstName, `[to:${selectedContact}]${label}`)
-        .catch(() => {});
+      actor.sendMessage(user.firstName, label).catch(() => {});
     }
     toast.success(
       media.type === "image"
@@ -2121,77 +1941,11 @@ function MessagesScreen({
     });
   };
 
-  // Contact picker view
-  if (!selectedContact) {
-    return (
-      <div className="relative min-h-screen celestial-bg flex flex-col overflow-hidden">
-        <StarsBackground />
-        <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
-          <SubPageHeader title="Chat with Friends" onBack={onBack} />
-          <div className="flex-1 overflow-y-auto py-4">
-            <p className="text-muted-foreground text-sm mb-4 text-center">
-              Select a person to start a private conversation
-            </p>
-            {loading && allSenders.length === 0 ? (
-              <div className="flex justify-center py-16">
-                <Loader2 className="w-8 h-8 text-gold animate-spin" />
-              </div>
-            ) : allSenders.length === 0 ? (
-              <div
-                className="text-center py-16"
-                data-ocid="messages.empty_state"
-              >
-                <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground text-sm">
-                  No conversations yet. Ask a friend to send you a message
-                  first!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {allSenders.map((contact, i) => (
-                  <motion.button
-                    key={contact}
-                    data-ocid={`messages.item.${i + 1}`}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    onClick={() => {
-                      setSelectedContact(contact);
-                      setLoading(true);
-                    }}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl card-celestial hover:bg-gold/10 transition-colors text-left"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-gold font-semibold text-lg">
-                        {contact.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-foreground font-medium">
-                      {contact}
-                    </span>
-                  </motion.button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="relative min-h-screen celestial-bg flex flex-col overflow-hidden">
       <StarsBackground />
       <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
-        <SubPageHeader
-          title={selectedContact}
-          onBack={() => {
-            setSelectedContact(null);
-            setMessages([]);
-            setLocalMediaMsgs([]);
-          }}
-        />
+        <SubPageHeader title="Chat with Friends" onBack={onBack} />
 
         <div className="relative flex-1 min-h-0">
           <div ref={scrollRef} className="h-full overflow-y-auto mb-0">
@@ -2200,10 +1954,7 @@ function MessagesScreen({
                 <Loader2 className="w-8 h-8 text-gold animate-spin" />
               </div>
             ) : messages.length === 0 && localMediaMsgs.length === 0 ? (
-              <div
-                className="text-center py-16"
-                data-ocid="messages.empty_state"
-              >
+              <div className="text-center py-16">
                 <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground">
                   No messages yet. Say hello!
@@ -2215,11 +1966,6 @@ function MessagesScreen({
                   const canDelete =
                     isLeader(user.firstName, user.lastName) ||
                     msg.sender === user.firstName;
-                  // Strip the [to:name] prefix for display
-                  const displayContent = msg.content.replace(
-                    /^\[to:[^\]]+\]/,
-                    "",
-                  );
                   return (
                     <motion.div
                       key={`${msg.sender}-${String(msg.timestamp)}-${i}`}
@@ -2228,16 +1974,21 @@ function MessagesScreen({
                       transition={{ delay: i * 0.03 }}
                     >
                       <ChatBubble
-                        msg={{ content: displayContent, sender: msg.sender }}
+                        msg={{ content: msg.content, sender: msg.sender }}
                         isOwn={msg.sender === user.firstName}
                         senderName={msg.sender}
                         time={formatTime(msg.timestamp)}
                         onDelete={
                           canDelete
                             ? async () => {
-                                setMessages((prev) =>
-                                  prev.filter((_, idx) => idx !== i),
-                                );
+                                try {
+                                  // Backend Message type has no id field, remove from local state only
+                                  setMessages((prev) =>
+                                    prev.filter((_, idx) => idx !== i),
+                                  );
+                                } catch {
+                                  toast.error("Failed to delete message");
+                                }
                               }
                             : undefined
                         }
@@ -4593,32 +4344,13 @@ function GroupChatScreen({
   const [messages, setMessages] = useState<Message[]>([]);
   const [localMediaMsgs, setLocalMediaMsgs] = useState<
     Array<{ id: string; sender: string; content: string; time: string }>
-  >(() => {
-    try {
-      const stored = localStorage.getItem("our-heaven-media-msgs-group");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  >([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showScrollUp, setShowScrollUp] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Persist group media messages to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "our-heaven-media-msgs-group",
-        JSON.stringify(localMediaMsgs.slice(-50)),
-      );
-    } catch {
-      // ignore
-    }
-  }, [localMediaMsgs]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -5919,31 +5651,11 @@ function AppInner() {
   });
   const [unreadMessages, setUnreadMessages] = useState(0);
   const lastSeenCountRef = useRef(0);
-  const hasViewedMessagesRef = useRef(false);
-  const notifPermGranted = useRef(false);
 
   // Notifications state
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const lastNotifMsgCountRef = useRef(0);
   const lastNotifImportantCountRef = useRef(0);
-
-  // Register service worker + request notification permission after login
-  useEffect(() => {
-    if (!userData.firstName) return;
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().then((perm) => {
-        notifPermGranted.current = perm === "granted";
-      });
-    } else if (
-      "Notification" in window &&
-      Notification.permission === "granted"
-    ) {
-      notifPermGranted.current = true;
-    }
-  }, [userData.firstName]);
 
   // Poll for new messages to show badge on Messages box
   useEffect(() => {
@@ -5952,38 +5664,8 @@ function AppInner() {
       try {
         const msgs = await actor.getAllMessages();
         const total = msgs.length;
-        if (hasViewedMessagesRef.current) {
-          // User already viewed — keep badge at 0, update baseline
-          setUnreadMessages(0);
-          lastSeenCountRef.current = total;
-          hasViewedMessagesRef.current = false;
-          return;
-        }
         if (total > lastSeenCountRef.current) {
-          const newCount = total - lastSeenCountRef.current;
-          setUnreadMessages(newCount);
-          // Fire browser/phone notification for new messages
-          if (
-            notifPermGranted.current &&
-            "serviceWorker" in navigator &&
-            document.hidden
-          ) {
-            const latest = msgs[msgs.length - 1];
-            const preview = latest
-              ? `${latest.sender}: ${String(latest.content).slice(0, 60)}`
-              : "You have new messages";
-            navigator.serviceWorker.ready
-              .then((reg) => {
-                reg.showNotification("Our Heaven — New Message", {
-                  body: preview,
-                  icon: "/favicon.ico",
-                  badge: "/favicon.ico",
-                  tag: "new-message",
-                  renotify: true,
-                } as NotificationOptions);
-              })
-              .catch(() => {});
-          }
+          setUnreadMessages(total - lastSeenCountRef.current);
         }
       } catch {
         // silent
@@ -6069,7 +5751,6 @@ function AppInner() {
       }
       if (s === "messages") {
         setUnreadMessages(0);
-        hasViewedMessagesRef.current = true;
         lastSeenCountRef.current = Number.MAX_SAFE_INTEGER;
         lastNotifMsgCountRef.current = Number.MAX_SAFE_INTEGER;
         if (actor) {
@@ -6078,11 +5759,8 @@ function AppInner() {
             .then((msgs) => {
               lastSeenCountRef.current = msgs.length;
               lastNotifMsgCountRef.current = msgs.length;
-              hasViewedMessagesRef.current = false;
             })
-            .catch(() => {
-              hasViewedMessagesRef.current = false;
-            });
+            .catch(() => {});
         }
       }
       setScreen(s);
