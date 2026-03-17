@@ -1,30 +1,29 @@
 # Our Heaven
 
 ## Current State
-- App has 22+ feature boxes in a 4-column grid with section headers (Community, Learning, Activities, People, Settings)
-- Community section includes Messages, Group Chat, Your Ideas, Notifications, Important Messages, WhatsApp Group
-- People section includes Rules, Birthday Dates, Star of the Month, Meet, Calling
-- Microphone code exists (useVoiceRecorder) but browser permissions policy may block it
-- getAllAccounts() backend function exists returning all Account records with firstName, lastName, phone fields
+The app stores media messages (photos, videos, voice) in localStorage as data URLs or blob URLs. localStorage has a ~5MB limit and blob URLs are ephemeral (lost on page reload). The microphone recording produces a blob URL which disappears on reload. There are also microphone access issues on some Android/browser setups.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **All Persons box** in the Community section (first section): shows all registered members' full name and phone number pulled from getAllAccounts()
-- **WhatsApp-style bottom tab bar** inside the Messages/chat boxes: 4 tabs — Chats (Messages), Updates (Notifications), Groups (Group Chat), Calls (Calling) — with yellow/gold active pill highlight and unread badge counts on relevant tabs
-- **Microphone permissions policy** in index.html to allow microphone access in the web app
+- IndexedDB utility module for persisting media message content (photos, videos, voice audio as ArrayBuffer/base64)
+- Media loading from IndexedDB on component mount for both private chat (ChatWithFriends) and group chat
 
 ### Modify
-- Community section: add All Persons box item
-- App routing: Messages/Group Chat/Calling boxes navigated from the new tab bar
-- index.html: add `<meta>` or `allow` attribute for microphone
+- `handleMediaSend` in ChatWithFriends: convert media content to base64 data URL before storing; save to IndexedDB keyed by message id; load back from IndexedDB on mount
+- `handleMediaSend` in GroupChat: same IndexedDB persistence
+- Voice recording in `VoiceRecorder`/`MediaAttachment`: after recording stops, convert blob to base64 data URL instead of blob URL so it persists across reloads
+- Microphone permission request: improve error handling for Android Chrome and Firefox; always re-request if previous state is unknown; catch NotAllowedError, NotFoundError, NotReadableError with specific user-friendly messages
+- Media message rendering: fall back gracefully if IndexedDB content not found (show placeholder)
 
 ### Remove
-- Nothing
+- localStorage-based media message persistence (replace with IndexedDB)
 
 ## Implementation Plan
-1. Add `<meta http-equiv="Permissions-Policy" content="microphone=*">` to index.html to enable mic
-2. Create AllPersonsScreen component that calls actor.getAllAccounts() and displays name + phone for each
-3. Add 'all-persons' screen/route and add the box to the Community section items list
-4. Create a MessagingHub component with a WhatsApp-style bottom tab bar (4 tabs: Chats, Updates, Groups, Calls) in yellow/gold theme with badge counts, that renders the appropriate sub-screen based on active tab
-5. Wire the Messages box to open MessagingHub instead of MessagesScreen directly
+1. Create `src/frontend/src/mediaDB.ts` - IndexedDB wrapper with `saveMedia(id, dataUrl)`, `loadMedia(id)`, `loadAllMedia(prefix)`, `deleteMedia(id)` functions
+2. Update voice recording: convert blob to base64 data URL using FileReader before calling onMediaSend
+3. Update ChatWithFriends `handleMediaSend`: save media to IndexedDB, store message with data URL content
+4. Update ChatWithFriends mount: load media from IndexedDB for the current chat key
+5. Update GroupChat `handleMediaSend` and mount similarly
+6. Update microphone permission error handling for better device compatibility
+7. Remove localStorage media persistence code

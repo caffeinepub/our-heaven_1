@@ -77,6 +77,7 @@ import type {
   StarOfTheMonth,
 } from "./backend.d.ts";
 import { useActor } from "./hooks/useActor";
+import { loadAllMediaByPrefix, loadMedia, saveMedia } from "./mediaDB";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1557,34 +1558,9 @@ function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const start = async () => {
-    // Check for non-HTTPS context
-    if (
-      typeof window !== "undefined" &&
-      window.location.protocol !== "https:" &&
-      window.location.hostname !== "localhost"
-    ) {
+    if (!navigator.mediaDevices?.getUserMedia) {
       setMicBlockedReason("no-https");
       return;
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setMicBlockedReason("no-https");
-      return;
-    }
-
-    // Check permission status if API available
-    if (navigator.permissions) {
-      try {
-        const perm = await navigator.permissions.query({
-          name: "microphone" as PermissionName,
-        });
-        if (perm.state === "denied") {
-          setMicBlockedReason("denied");
-          return;
-        }
-      } catch {
-        // permissions API not supported, fall through
-      }
     }
 
     try {
@@ -1597,13 +1573,17 @@ function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
       };
       mr.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        onDone({
-          type: "voice",
-          content: url,
-          mimeType: "audio/webm",
-          name: "voice-message.webm",
-        });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          onDone({
+            type: "voice",
+            content: dataUrl,
+            mimeType: "audio/webm",
+            name: "voice-message.webm",
+          });
+        };
+        reader.readAsDataURL(blob);
         for (const t of stream.getTracks()) t.stop();
         setRecording(false);
         setSeconds(0);
@@ -1614,15 +1594,23 @@ function useVoiceRecorder(onDone: (msg: ChatMediaMessage) => void) {
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
     } catch (err: unknown) {
-      const isPermDenied =
-        err instanceof DOMException &&
-        (err.name === "NotAllowedError" ||
-          err.name === "PermissionDeniedError");
-      if (isPermDenied) {
-        setMicBlockedReason("denied");
+      if (err instanceof DOMException) {
+        if (
+          err.name === "NotAllowedError" ||
+          err.name === "PermissionDeniedError"
+        ) {
+          setMicBlockedReason("denied");
+        } else if (
+          err.name === "NotFoundError" ||
+          err.name === "DevicesNotFoundError"
+        ) {
+          toast.error("No microphone found on this device.");
+        } else {
+          toast.error(`Could not access microphone: ${err.message}`);
+        }
       } else {
         toast.error(
-          "Could not start recording. Please allow microphone access and try again.",
+          "Could not start recording. Please allow microphone access.",
         );
       }
     }
@@ -1873,6 +1861,18 @@ function ChatInputBar({
 }
 
 // Helper: render a chat message bubble that may contain image or voice
+const TEXT_COLORS = [
+  "inherit",
+  "#FFD700",
+  "#FF6B6B",
+  "#4ECDC4",
+  "#45B7D1",
+  "#96CEB4",
+  "#FFEAA7",
+  "#DDA0DD",
+  "#98FB98",
+];
+
 function ChatBubble({
   msg,
   isOwn,
@@ -1889,7 +1889,20 @@ function ChatBubble({
   const isImageData = msg.content.startsWith("data:image");
   const isVideoData = msg.content.startsWith("data:video");
   const isVoiceBlob =
-    msg.content.startsWith("blob:") || msg.content.startsWith("[voice]");
+    msg.content.startsWith("blob:") ||
+    msg.content.startsWith("[voice]") ||
+    msg.content.startsWith("data:audio");
+  const [colorIdx, setColorIdx] = useState(0);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePressStart = () => {
+    pressTimer.current = setTimeout(() => {
+      setColorIdx((i) => (i + 1) % TEXT_COLORS.length);
+    }, 3000);
+  };
+  const handlePressEnd = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+  };
 
   return (
     <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
@@ -1899,17 +1912,25 @@ function ChatBubble({
         </span>
       )}
       <div
-        className={`max-w-[75%] rounded-2xl overflow-hidden ${
+        className={`max-w-[75%] rounded-2xl overflow-hidden select-none ${
           isOwn
             ? "bg-gold text-deep-space rounded-tr-sm"
             : "card-celestial text-foreground rounded-tl-sm"
         }`}
+        onMouseDown={handlePressStart}
+        onMouseUp={handlePressEnd}
+        onMouseLeave={handlePressEnd}
+        onTouchStart={handlePressStart}
+        onTouchEnd={handlePressEnd}
+        onTouchCancel={handlePressEnd}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {isImageData ? (
           <img
             src={msg.content}
             alt="sent"
             className="max-w-full max-h-48 object-contain block"
+            draggable={false}
           />
         ) : isVideoData ? (
           /* biome-ignore lint/a11y/useMediaCaption: user-uploaded video, no transcript available */
@@ -1924,12 +1945,21 @@ function ChatBubble({
             {/* biome-ignore lint/a11y/useMediaCaption: voice message playback, no transcript available */}
             <audio
               controls
-              src={msg.content.replace("[voice]", "")}
+              src={
+                msg.content.startsWith("[voice]")
+                  ? msg.content.replace("[voice]", "")
+                  : msg.content
+              }
               className="h-8 max-w-[160px]"
             />
           </div>
         ) : (
-          <p className="px-4 py-2.5 text-sm">{msg.content}</p>
+          <p
+            className="px-4 py-2.5 text-sm"
+            style={{ color: TEXT_COLORS[colorIdx] }}
+          >
+            {msg.content}
+          </p>
         )}
       </div>
       <div
@@ -1980,23 +2010,47 @@ function MessagesScreen({
     ? `our-heaven-media-msgs-${[user.firstName, selectedContact].sort().join("-")}`
     : null;
 
-  // Load media messages from localStorage when contact selected
+  // Load media messages from IndexedDB when contact selected
   useEffect(() => {
     if (!mediaKey) return;
+    const metaKey = `${mediaKey}-meta`;
     try {
-      const stored = localStorage.getItem(mediaKey);
-      if (stored) setLocalMediaMsgs(JSON.parse(stored));
+      const stored = localStorage.getItem(metaKey);
+      if (stored) {
+        const msgs = JSON.parse(stored) as Array<{
+          id: string;
+          sender: string;
+          content: string;
+          time: string;
+        }>;
+        Promise.all(
+          msgs.map(async (m) => {
+            const fromDB = await loadMedia(`${mediaKey}-${m.id}`);
+            return { ...m, content: fromDB ?? m.content };
+          }),
+        )
+          .then((resolved) => setLocalMediaMsgs(resolved))
+          .catch(() => {});
+      }
     } catch {
       // ignore
     }
   }, [mediaKey]);
 
-  // Persist media messages to localStorage
+  // Persist media message metadata to localStorage
   useEffect(() => {
     if (!mediaKey) return;
     try {
+      const metaKey = `${mediaKey}-meta`;
       const limited = localMediaMsgs.slice(-50);
-      localStorage.setItem(mediaKey, JSON.stringify(limited));
+      const meta = limited.map((m) => ({
+        ...m,
+        content:
+          m.content.startsWith("data:") || m.content.startsWith("blob:")
+            ? "[media]"
+            : m.content,
+      }));
+      localStorage.setItem(metaKey, JSON.stringify(meta));
     } catch {
       // ignore
     }
@@ -2077,10 +2131,10 @@ function MessagesScreen({
 
   const handleMediaSend = (media: ChatMediaMessage) => {
     if (!selectedContact) return;
-    const rawContent =
-      media.type === "voice" ? `[voice]${media.content}` : media.content;
+    const rawContent = media.type === "voice" ? media.content : media.content;
+    const msgId = `media-${Date.now()}`;
     const newMsg = {
-      id: `media-${Date.now()}`,
+      id: msgId,
       sender: user.firstName,
       content: rawContent,
       time: new Date().toLocaleTimeString([], {
@@ -2089,6 +2143,13 @@ function MessagesScreen({
       }),
     };
     setLocalMediaMsgs((prev) => [...prev, newMsg]);
+    // Persist media to IndexedDB
+    if (
+      mediaKey &&
+      (rawContent.startsWith("data:") || rawContent.startsWith("blob:"))
+    ) {
+      saveMedia(`${mediaKey}-${msgId}`, rawContent).catch(() => {});
+    }
     if (actor) {
       const label =
         media.type === "voice"
@@ -4593,14 +4654,7 @@ function GroupChatScreen({
   const [messages, setMessages] = useState<Message[]>([]);
   const [localMediaMsgs, setLocalMediaMsgs] = useState<
     Array<{ id: string; sender: string; content: string; time: string }>
-  >(() => {
-    try {
-      const stored = localStorage.getItem("our-heaven-media-msgs-group");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  >([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -4608,13 +4662,45 @@ function GroupChatScreen({
   const [showScrollDown, setShowScrollDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Persist group media messages to localStorage
+  // Load group media from IndexedDB on mount
+  useEffect(() => {
+    const metaKey = "our-heaven-media-msgs-group-meta";
+    try {
+      const stored = localStorage.getItem(metaKey);
+      if (stored) {
+        const msgs = JSON.parse(stored) as Array<{
+          id: string;
+          sender: string;
+          content: string;
+          time: string;
+        }>;
+        Promise.all(
+          msgs.map(async (m) => {
+            const fromDB = await loadMedia(`group-${m.id}`);
+            return { ...m, content: fromDB ?? m.content };
+          }),
+        )
+          .then((resolved) => setLocalMediaMsgs(resolved))
+          .catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist group media metadata to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(
-        "our-heaven-media-msgs-group",
-        JSON.stringify(localMediaMsgs.slice(-50)),
-      );
+      const metaKey = "our-heaven-media-msgs-group-meta";
+      const limited = localMediaMsgs.slice(-50);
+      const meta = limited.map((m) => ({
+        ...m,
+        content:
+          m.content.startsWith("data:") || m.content.startsWith("blob:")
+            ? "[media]"
+            : m.content,
+      }));
+      localStorage.setItem(metaKey, JSON.stringify(meta));
     } catch {
       // ignore
     }
@@ -4669,17 +4755,22 @@ function GroupChatScreen({
   };
 
   const handleMediaSend = (media: ChatMediaMessage) => {
+    const msgId = `media-gc-${Date.now()}`;
+    const rawContent = media.content;
     const newMsg = {
-      id: `media-gc-${Date.now()}`,
+      id: msgId,
       sender: user.firstName,
-      content:
-        media.type === "voice" ? `[voice]${media.content}` : media.content,
+      content: rawContent,
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       }),
     };
     setLocalMediaMsgs((prev) => [...prev, newMsg]);
+    // Persist media to IndexedDB
+    if (rawContent.startsWith("data:") || rawContent.startsWith("blob:")) {
+      saveMedia(`group-${msgId}`, rawContent).catch(() => {});
+    }
     if (actor) {
       const label =
         media.type === "voice"
