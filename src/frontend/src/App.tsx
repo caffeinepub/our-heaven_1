@@ -1098,12 +1098,7 @@ function HomeScreen({
                   label: "Time Table",
                   badge: 0,
                 },
-                {
-                  screen: "luttapi",
-                  icon: Bot,
-                  label: "Luttapi AI",
-                  badge: 0,
-                },
+
                 {
                   screen: "calendar",
                   icon: CalendarDays,
@@ -6665,6 +6660,19 @@ function AppInner() {
           </div>
         </div>
       )}
+
+      {/* Luttapi AI Floating Action Button */}
+      {screen !== "luttapi" && (
+        <button
+          type="button"
+          data-ocid="luttapi.fab"
+          onClick={() => navigate("luttapi")}
+          className="fixed bottom-6 right-5 z-40 w-14 h-14 rounded-full bg-gray-900 border-2 border-yellow-500/60 shadow-2xl shadow-yellow-500/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+          title="Ask Luttapi AI"
+        >
+          <Bot className="w-6 h-6 text-yellow-400" />
+        </button>
+      )}
     </ActorContext.Provider>
   );
 }
@@ -6708,13 +6716,13 @@ const defaultPlayingTimetable: PlayingTimetableState = {
 };
 
 function TimeTableScreen({
-  user,
+  user: _user,
   onBack,
 }: {
   user: { firstName: string; lastName: string } | null;
   onBack: () => void;
 }) {
-  const isAaron = user?.firstName === "Aaron" && user?.lastName === "David";
+  const isAaron = true; // all users can edit timetable
 
   const [activeTab, setActiveTab] = useState<"playing" | "exam">("playing");
 
