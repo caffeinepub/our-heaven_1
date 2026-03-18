@@ -25,7 +25,9 @@ import {
   ArrowUp,
   Bell,
   BookOpen,
+  Bot,
   Cake,
+  CalendarClock,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
@@ -110,7 +112,9 @@ type Screen =
   | "notifications"
   | "all-persons"
   | "messaging-hub"
-  | "settings";
+  | "settings"
+  | "timetable"
+  | "luttapi";
 
 interface NotificationItem {
   id: string;
@@ -1086,6 +1090,18 @@ function HomeScreen({
                   screen: "home-works",
                   icon: BookOpen,
                   label: "Home Works",
+                  badge: 0,
+                },
+                {
+                  screen: "timetable",
+                  icon: CalendarClock,
+                  label: "Time Table",
+                  badge: 0,
+                },
+                {
+                  screen: "luttapi",
+                  icon: Bot,
+                  label: "Luttapi AI",
                   badge: 0,
                 },
                 {
@@ -5993,6 +6009,8 @@ function saveUser(u: UserData) {
   }
 }
 
+const APP_VERSION = "2026-03-17-v1";
+
 function AppInner() {
   const { actor } = useActor();
 
@@ -6180,6 +6198,32 @@ function AppInner() {
     },
     [actor, markAllNotifsRead],
   );
+
+  const [showUpdatePopup, setShowUpdatePopup] = useState(false);
+
+  const dismissUpdate = (andReload = false) => {
+    localStorage.setItem(
+      "ourheaven_update_dismissed",
+      JSON.stringify({ version: APP_VERSION, timestamp: Date.now() }),
+    );
+    setShowUpdatePopup(false);
+    if (andReload) window.location.reload();
+  };
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("ourheaven_update_dismissed");
+      if (stored) {
+        const { version } = JSON.parse(stored);
+        if (version === APP_VERSION) return;
+      }
+      const timer = setTimeout(() => setShowUpdatePopup(true), 2000);
+      return () => clearTimeout(timer);
+    } catch {
+      const timer = setTimeout(() => setShowUpdatePopup(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   return (
     <ActorContext.Provider value={actor}>
@@ -6532,6 +6576,34 @@ function AppInner() {
               <AllPersonsScreen onBack={() => navigate("home")} />
             </motion.div>
           )}
+          {screen === "timetable" && (
+            <motion.div
+              key="timetable"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <TimeTableScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "luttapi" && (
+            <motion.div
+              key="luttapi"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <LuttapiScreen
+                onBack={() => navigate("home")}
+                currentUser={userData}
+              />
+            </motion.div>
+          )}
           {screen === "messaging-hub" && (
             <motion.div
               key="messaging-hub"
@@ -6553,7 +6625,990 @@ function AppInner() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* New Update Available Popup */}
+      {showUpdatePopup && (
+        <div
+          data-ocid="update.dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+        >
+          <div className="relative bg-gray-950 border-2 border-yellow-500 rounded-2xl p-6 max-w-sm w-full shadow-2xl shadow-yellow-500/20">
+            <button
+              type="button"
+              data-ocid="update.close_button"
+              onClick={() => dismissUpdate(false)}
+              className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="text-center">
+              <div className="text-3xl mb-2">✨</div>
+              <h2 className="text-yellow-400 font-bold text-lg mb-1">
+                New Update Available!
+              </h2>
+              <p className="text-gray-300 text-sm mb-1">
+                The app has been updated with new features.
+              </p>
+              <p className="text-gray-400 text-xs mb-5">
+                Tap below to refresh and get the latest version.
+              </p>
+              <button
+                type="button"
+                data-ocid="update.confirm_button"
+                onClick={() => dismissUpdate(true)}
+                className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl text-base transition mb-3"
+              >
+                Update Now 🚀
+              </button>
+              <p className="text-gray-600 text-xs">Next update in ~1 week</p>
+            </div>
+          </div>
+        </div>
+      )}
     </ActorContext.Provider>
+  );
+}
+
+// ─── TimeTable Screen ─────────────────────────────────────────────────────────
+
+interface PlayingTimetableRow {
+  id: string;
+  label: string;
+  cells: string[];
+}
+
+interface PlayingTimetableState {
+  rows: PlayingTimetableRow[];
+  photoUrl: string | null;
+}
+
+interface ExamRow {
+  id: string;
+  date: string;
+  subject: string;
+  time: string;
+  notes: string;
+}
+
+interface ExamTimetable {
+  id: string;
+  className: string;
+  rows: ExamRow[];
+  photoUrl: string | null;
+}
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const defaultPlayingTimetable: PlayingTimetableState = {
+  rows: [
+    { id: "r1", label: "Planting", cells: ["", "", "", "", "", "", ""] },
+    { id: "r2", label: "Clean", cells: ["", "", "", "", "", "", ""] },
+  ],
+  photoUrl: null,
+};
+
+function TimeTableScreen({
+  user,
+  onBack,
+}: {
+  user: { firstName: string; lastName: string } | null;
+  onBack: () => void;
+}) {
+  const isAaron = user?.firstName === "Aaron" && user?.lastName === "David";
+
+  const [activeTab, setActiveTab] = useState<"playing" | "exam">("playing");
+
+  // Playing timetable state
+  const [playing, setPlaying] = useState<PlayingTimetableState>(() => {
+    try {
+      const stored = localStorage.getItem("ourheaven_playing_timetable");
+      return stored ? JSON.parse(stored) : defaultPlayingTimetable;
+    } catch {
+      return defaultPlayingTimetable;
+    }
+  });
+
+  // Exam timetables state
+  const [examTimetables, setExamTimetables] = useState<ExamTimetable[]>(() => {
+    try {
+      const stored = localStorage.getItem("ourheaven_exam_timetables");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [activeExamId, setActiveExamId] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{
+    type: "playing" | "exam";
+    rowId: string;
+    col: string;
+    examId?: string;
+  } | null>(null);
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [newRowLabel, setNewRowLabel] = useState("");
+  const [showAddRow, setShowAddRow] = useState(false);
+  const [newClassName, setNewClassName] = useState("");
+  const [showAddClass, setShowAddClass] = useState(false);
+
+  const savePlayingToStorage = (data: PlayingTimetableState) => {
+    localStorage.setItem("ourheaven_playing_timetable", JSON.stringify(data));
+  };
+
+  const saveExamToStorage = (data: ExamTimetable[]) => {
+    localStorage.setItem("ourheaven_exam_timetables", JSON.stringify(data));
+  };
+
+  const updatePlayingCell = (rowId: string, colIdx: number, value: string) => {
+    setPlaying((prev) => {
+      const updated = {
+        ...prev,
+        rows: prev.rows.map((r) =>
+          r.id === rowId
+            ? { ...r, cells: r.cells.map((c, i) => (i === colIdx ? value : c)) }
+            : r,
+        ),
+      };
+      savePlayingToStorage(updated);
+      return updated;
+    });
+  };
+
+  const updatePlayingLabel = (rowId: string, label: string) => {
+    setPlaying((prev) => {
+      const updated = {
+        ...prev,
+        rows: prev.rows.map((r) => (r.id === rowId ? { ...r, label } : r)),
+      };
+      savePlayingToStorage(updated);
+      return updated;
+    });
+  };
+
+  const addPlayingRow = () => {
+    if (!newRowLabel.trim()) return;
+    setPlaying((prev) => {
+      const updated = {
+        ...prev,
+        rows: [
+          ...prev.rows,
+          {
+            id: `r${Date.now()}`,
+            label: newRowLabel.trim(),
+            cells: ["", "", "", "", "", "", ""],
+          },
+        ],
+      };
+      savePlayingToStorage(updated);
+      return updated;
+    });
+    setNewRowLabel("");
+    setShowAddRow(false);
+  };
+
+  const removePlayingRow = (rowId: string) => {
+    setPlaying((prev) => {
+      const updated = {
+        ...prev,
+        rows: prev.rows.filter((r) => r.id !== rowId),
+      };
+      savePlayingToStorage(updated);
+      return updated;
+    });
+  };
+
+  const handlePlayingPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPlaying((prev) => {
+        const updated = { ...prev, photoUrl: reader.result as string };
+        savePlayingToStorage(updated);
+        return updated;
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addExamClass = () => {
+    if (!newClassName.trim()) return;
+    const newExam: ExamTimetable = {
+      id: `exam${Date.now()}`,
+      className: newClassName.trim(),
+      rows: [],
+      photoUrl: null,
+    };
+    setExamTimetables((prev) => {
+      const updated = [...prev, newExam];
+      saveExamToStorage(updated);
+      return updated;
+    });
+    setActiveExamId(newExam.id);
+    setNewClassName("");
+    setShowAddClass(false);
+  };
+
+  const removeExamClass = (examId: string) => {
+    setExamTimetables((prev) => {
+      const updated = prev.filter((e) => e.id !== examId);
+      saveExamToStorage(updated);
+      return updated;
+    });
+    if (activeExamId === examId) setActiveExamId(null);
+  };
+
+  const addExamRow = (examId: string) => {
+    setExamTimetables((prev) => {
+      const updated = prev.map((e) =>
+        e.id === examId
+          ? {
+              ...e,
+              rows: [
+                ...e.rows,
+                {
+                  id: `er${Date.now()}`,
+                  date: "",
+                  subject: "",
+                  time: "",
+                  notes: "",
+                },
+              ],
+            }
+          : e,
+      );
+      saveExamToStorage(updated);
+      return updated;
+    });
+  };
+
+  const removeExamRow = (examId: string, rowId: string) => {
+    setExamTimetables((prev) => {
+      const updated = prev.map((e) =>
+        e.id === examId
+          ? { ...e, rows: e.rows.filter((r) => r.id !== rowId) }
+          : e,
+      );
+      saveExamToStorage(updated);
+      return updated;
+    });
+  };
+
+  const updateExamCell = (
+    examId: string,
+    rowId: string,
+    field: keyof ExamRow,
+    value: string,
+  ) => {
+    setExamTimetables((prev) => {
+      const updated = prev.map((e) =>
+        e.id === examId
+          ? {
+              ...e,
+              rows: e.rows.map((r) =>
+                r.id === rowId ? { ...r, [field]: value } : r,
+              ),
+            }
+          : e,
+      );
+      saveExamToStorage(updated);
+      return updated;
+    });
+  };
+
+  const handleExamPhoto = (
+    examId: string,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setExamTimetables((prev) => {
+        const updated = prev.map((ex) =>
+          ex.id === examId ? { ...ex, photoUrl: reader.result as string } : ex,
+        );
+        saveExamToStorage(updated);
+        return updated;
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const currentExam =
+    examTimetables.find((e) => e.id === activeExamId) ||
+    examTimetables[0] ||
+    null;
+  if (!activeExamId && examTimetables.length > 0) {
+    setActiveExamId(examTimetables[0].id);
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-black/90 backdrop-blur border-b border-yellow-500/30 px-4 py-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="p-2 rounded-full hover:bg-yellow-500/20 transition"
+        >
+          <ArrowLeft className="w-5 h-5 text-yellow-400" />
+        </button>
+        <CalendarClock className="w-5 h-5 text-yellow-400" />
+        <h1 className="text-lg font-bold text-yellow-400">Time Table</h1>
+      </div>
+
+      {/* Tab Bar */}
+      <div className="flex border-b border-yellow-500/20 bg-black/80">
+        {(["playing", "exam"] as const).map((tab) => (
+          <button
+            type="button"
+            key={tab}
+            data-ocid="timetable.tab"
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-3 text-sm font-semibold transition ${
+              activeTab === tab
+                ? "text-yellow-400 border-b-2 border-yellow-400"
+                : "text-gray-400 hover:text-yellow-300"
+            }`}
+          >
+            {tab === "playing" ? "🎮 Playing Time Table" : "📝 Exam Time Table"}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-4">
+        {/* ── Playing Time Table ── */}
+        {activeTab === "playing" && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-yellow-300 font-bold text-base">
+                Playing Schedule
+              </h2>
+              {isAaron && (
+                <div className="flex gap-2">
+                  <label
+                    data-ocid="timetable.upload_button"
+                    className="flex items-center gap-1 text-xs bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 px-3 py-1.5 rounded-full cursor-pointer transition"
+                  >
+                    <ImageIcon className="w-3 h-3" />
+                    Photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePlayingPhoto}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    data-ocid="timetable.add_row_button"
+                    onClick={() => setShowAddRow(true)}
+                    className="flex items-center gap-1 text-xs bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded-full font-semibold transition"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Row
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {showAddRow && isAaron && (
+              <div className="flex gap-2 mb-3">
+                <input
+                  className="flex-1 bg-white/10 border border-yellow-500/40 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400"
+                  placeholder="Row name (e.g. Sports)"
+                  value={newRowLabel}
+                  onChange={(e) => setNewRowLabel(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addPlayingRow()}
+                />
+                <button
+                  type="button"
+                  data-ocid="timetable.save_button"
+                  onClick={addPlayingRow}
+                  className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg text-sm font-semibold"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddRow(false)}
+                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-sm"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {playing.photoUrl && (
+              <div className="mb-4 rounded-xl overflow-hidden border border-yellow-500/20">
+                <img
+                  src={playing.photoUrl}
+                  alt="Timetable"
+                  className="w-full max-h-60 object-contain bg-black"
+                />
+              </div>
+            )}
+
+            {/* Playing Grid */}
+            <div className="overflow-x-auto rounded-xl border border-yellow-500/20">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="bg-yellow-500/20">
+                    <th className="px-3 py-2 text-left text-yellow-300 font-bold border-r border-yellow-500/20 min-w-[90px]">
+                      Activity
+                    </th>
+                    {DAYS.map((day) => (
+                      <th
+                        key={day}
+                        className="px-3 py-2 text-center text-yellow-300 font-bold border-r border-yellow-500/20 min-w-[70px] last:border-r-0"
+                      >
+                        {day}
+                      </th>
+                    ))}
+                    {isAaron && <th className="px-2 py-2 min-w-[40px]" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {playing.rows.map((row, rIdx) => (
+                    <tr
+                      key={row.id}
+                      className={`border-t border-yellow-500/10 ${rIdx % 2 === 0 ? "bg-white/3" : "bg-white/5"}`}
+                    >
+                      {/* Label cell */}
+                      <td className="px-2 py-1 border-r border-yellow-500/20">
+                        {isAaron && editingLabel === row.id ? (
+                          <input
+                            className="w-full bg-yellow-500/10 border border-yellow-400 rounded px-2 py-1 text-yellow-200 text-xs focus:outline-none"
+                            value={row.label}
+                            onChange={(e) =>
+                              updatePlayingLabel(row.id, e.target.value)
+                            }
+                            onBlur={() => setEditingLabel(null)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && setEditingLabel(null)
+                            }
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={`text-yellow-200 font-medium text-xs bg-transparent border-0 p-0 ${isAaron ? "cursor-pointer hover:text-yellow-400" : ""}`}
+                            onClick={() => isAaron && setEditingLabel(row.id)}
+                          >
+                            {row.label}
+                          </button>
+                        )}
+                      </td>
+                      {/* Day cells */}
+                      {row.cells.map((cell, ci) => (
+                        <td
+                          key={`${row.id}-c${ci}`}
+                          className="px-1 py-1 border-r border-yellow-500/10 last:border-r-0 text-center"
+                        >
+                          {isAaron &&
+                          editingCell?.type === "playing" &&
+                          editingCell.rowId === row.id &&
+                          editingCell.col === String(ci) ? (
+                            <input
+                              className="w-full bg-yellow-500/10 border border-yellow-400 rounded px-1 py-0.5 text-yellow-100 text-xs text-center focus:outline-none"
+                              value={cell}
+                              placeholder="Person's name"
+                              onChange={(e) =>
+                                updatePlayingCell(row.id, ci, e.target.value)
+                              }
+                              onBlur={() => setEditingCell(null)}
+                              onKeyDown={(e) =>
+                                e.key === "Enter" && setEditingCell(null)
+                              }
+                            />
+                          ) : (
+                            <span
+                              className={`text-gray-200 text-xs ${isAaron ? "cursor-pointer hover:text-yellow-300 hover:bg-yellow-500/10 rounded px-1 py-0.5" : ""}`}
+                              onClick={() =>
+                                isAaron &&
+                                setEditingCell({
+                                  type: "playing",
+                                  rowId: row.id,
+                                  col: String(ci),
+                                })
+                              }
+                              onKeyDown={(e) =>
+                                e.key === "Enter" &&
+                                isAaron &&
+                                setEditingCell({
+                                  type: "playing",
+                                  rowId: row.id,
+                                  col: String(ci),
+                                })
+                              }
+                              tabIndex={isAaron ? 0 : undefined}
+                            >
+                              {cell || (isAaron ? "Add name..." : "─")}
+                            </span>
+                          )}
+                        </td>
+                      ))}
+                      {isAaron && (
+                        <td className="px-1 py-1">
+                          <button
+                            type="button"
+                            data-ocid="timetable.delete_button"
+                            onClick={() => removePlayingRow(row.id)}
+                            className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {playing.rows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="py-6 text-center text-gray-500 text-sm"
+                      >
+                        No rows yet.{" "}
+                        {isAaron ? "Add a row to get started." : ""}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Exam Time Table ── */}
+        {activeTab === "exam" && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-yellow-300 font-bold text-base">
+                Exam Schedule
+              </h2>
+              {isAaron && (
+                <button
+                  type="button"
+                  data-ocid="timetable.add_class_button"
+                  onClick={() => setShowAddClass(true)}
+                  className="flex items-center gap-1 text-xs bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded-full font-semibold transition"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Class
+                </button>
+              )}
+            </div>
+
+            {showAddClass && isAaron && (
+              <div className="flex gap-2 mb-3">
+                <input
+                  className="flex-1 bg-white/10 border border-yellow-500/40 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400"
+                  placeholder="Class name (e.g. Class 5)"
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addExamClass()}
+                />
+                <button
+                  type="button"
+                  data-ocid="timetable.save_button"
+                  onClick={addExamClass}
+                  className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg text-sm font-semibold"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddClass(false)}
+                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-sm"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Class tabs */}
+            {examTimetables.length > 0 && (
+              <div className="flex gap-2 flex-wrap mb-4">
+                {examTimetables.map((exam) => (
+                  <div key={exam.id} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      data-ocid="timetable.tab"
+                      onClick={() => setActiveExamId(exam.id)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                        activeExamId === exam.id ||
+                        (!activeExamId && examTimetables[0]?.id === exam.id)
+                          ? "bg-yellow-500 text-black"
+                          : "bg-white/10 text-gray-300 hover:bg-white/20"
+                      }`}
+                    >
+                      {exam.className}
+                    </button>
+                    {isAaron && (
+                      <button
+                        type="button"
+                        data-ocid="timetable.delete_button"
+                        onClick={() => removeExamClass(exam.id)}
+                        className="p-1 text-red-400 hover:text-red-300"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {examTimetables.length === 0 && (
+              <div className="py-12 text-center text-gray-500">
+                No exam timetables yet.{" "}
+                {isAaron ? "Tap Add Class to create one." : ""}
+              </div>
+            )}
+
+            {currentExam && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-yellow-200 font-semibold">
+                    {currentExam.className}
+                  </span>
+                  <div className="flex gap-2">
+                    {isAaron && (
+                      <>
+                        <label
+                          data-ocid="timetable.upload_button"
+                          className="flex items-center gap-1 text-xs bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 px-3 py-1.5 rounded-full cursor-pointer transition"
+                        >
+                          <ImageIcon className="w-3 h-3" />
+                          Photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleExamPhoto(currentExam.id, e)}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          data-ocid="timetable.add_row_button"
+                          onClick={() => addExamRow(currentExam.id)}
+                          className="flex items-center gap-1 text-xs bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded-full font-semibold transition"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Add Row
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {currentExam.photoUrl && (
+                  <div className="mb-4 rounded-xl overflow-hidden border border-yellow-500/20">
+                    <img
+                      src={currentExam.photoUrl}
+                      alt="Exam Timetable"
+                      className="w-full max-h-60 object-contain bg-black"
+                    />
+                  </div>
+                )}
+
+                <div className="overflow-x-auto rounded-xl border border-yellow-500/20">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-yellow-500/20">
+                        {["Day / Date", "Subject", "Time", "Notes"].map(
+                          (col) => (
+                            <th
+                              key={col}
+                              className="px-3 py-2 text-left text-yellow-300 font-bold border-r border-yellow-500/20 last:border-r-0 min-w-[100px]"
+                            >
+                              {col}
+                            </th>
+                          ),
+                        )}
+                        {isAaron && <th className="px-2 py-2 min-w-[40px]" />}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentExam.rows.map((row, rIdx) => (
+                        <tr
+                          key={row.id}
+                          className={`border-t border-yellow-500/10 ${rIdx % 2 === 0 ? "bg-white/3" : "bg-white/5"}`}
+                        >
+                          {(["date", "subject", "time", "notes"] as const).map(
+                            (field) => (
+                              <td
+                                key={field}
+                                className="px-2 py-1 border-r border-yellow-500/10 last:border-r-0"
+                              >
+                                {isAaron &&
+                                editingCell?.type === "exam" &&
+                                editingCell.rowId === row.id &&
+                                editingCell.col === field &&
+                                editingCell.examId === currentExam.id ? (
+                                  <input
+                                    className="w-full bg-yellow-500/10 border border-yellow-400 rounded px-2 py-1 text-yellow-100 text-xs focus:outline-none"
+                                    value={row[field]}
+                                    onChange={(e) =>
+                                      updateExamCell(
+                                        currentExam.id,
+                                        row.id,
+                                        field,
+                                        e.target.value,
+                                      )
+                                    }
+                                    onBlur={() => setEditingCell(null)}
+                                    onKeyDown={(e) =>
+                                      e.key === "Enter" && setEditingCell(null)
+                                    }
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className={`text-gray-200 text-xs bg-transparent border-0 p-0 ${isAaron ? "cursor-pointer hover:text-yellow-300" : ""}`}
+                                    onClick={() =>
+                                      isAaron &&
+                                      setEditingCell({
+                                        type: "exam",
+                                        rowId: row.id,
+                                        col: field,
+                                        examId: currentExam.id,
+                                      })
+                                    }
+                                  >
+                                    {row[field] ||
+                                      (isAaron ? (
+                                        <span className="text-gray-600">─</span>
+                                      ) : (
+                                        ""
+                                      ))}
+                                  </button>
+                                )}
+                              </td>
+                            ),
+                          )}
+                          {isAaron && (
+                            <td className="px-1 py-1">
+                              <button
+                                type="button"
+                                data-ocid="timetable.delete_button"
+                                onClick={() =>
+                                  removeExamRow(currentExam.id, row.id)
+                                }
+                                className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                      {currentExam.rows.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="py-6 text-center text-gray-500 text-sm"
+                          >
+                            No rows yet.{" "}
+                            {isAaron ? "Tap Add Row to start." : ""}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Luttapi AI Screen ──────────────────────────────────────────────────────
+
+interface LuttapiMessage {
+  id: string;
+  role: "user" | "ai";
+  text: string;
+  timestamp: number;
+}
+
+function LuttapiScreen({
+  onBack,
+}: {
+  onBack: () => void;
+  currentUser?: UserData | null;
+}) {
+  const [messages, setMessages] = useState<LuttapiMessage[]>([
+    {
+      id: "1",
+      role: "ai",
+      text: "Hi! I am Luttapi 🤖 — your AI assistant. Ask me anything!",
+      timestamp: Date.now(),
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: bottomRef is stable
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput("");
+
+    const userMsg: LuttapiMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      text,
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setLoading(true);
+
+    try {
+      const encoded = encodeURIComponent(text);
+      const res = await fetch(`https://text.pollinations.ai/${encoded}`);
+      const aiText = await res.text();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "ai",
+          text:
+            aiText.trim() ||
+            "Sorry, I could not get a response. Please try again.",
+          timestamp: Date.now(),
+        },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "ai",
+          text: "Network error. Please check your connection and try again.",
+          timestamp: Date.now(),
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") sendMessage();
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-black text-white">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-yellow-500/30 bg-black/80 backdrop-blur-sm">
+        <button
+          type="button"
+          onClick={onBack}
+          className="p-1.5 rounded-full hover:bg-yellow-400/10 transition-colors"
+          data-ocid="luttapi.back.button"
+        >
+          <ArrowLeft className="w-5 h-5 text-yellow-400" />
+        </button>
+        <div className="w-9 h-9 rounded-full bg-yellow-400/20 border border-yellow-400/50 flex items-center justify-center">
+          <Bot className="w-5 h-5 text-yellow-400" />
+        </div>
+        <div>
+          <h1 className="font-bold text-yellow-400 text-base leading-tight">
+            Luttapi AI
+          </h1>
+          <p className="text-xs text-yellow-400/60">
+            Your personal AI assistant
+          </p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        data-ocid="luttapi.panel"
+      >
+        {messages.map((msg, i) => (
+          <div
+            key={msg.id}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            data-ocid={`luttapi.item.${i + 1}`}
+          >
+            {msg.role === "ai" && (
+              <div className="w-7 h-7 rounded-full bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center mr-2 mt-1 shrink-0">
+                <Bot className="w-4 h-4 text-yellow-400" />
+              </div>
+            )}
+            <div
+              className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                msg.role === "user"
+                  ? "bg-yellow-400 text-black font-medium rounded-br-sm"
+                  : "bg-white/10 text-white border border-white/10 rounded-bl-sm"
+              }`}
+            >
+              {msg.text}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start" data-ocid="luttapi.loading_state">
+            <div className="w-7 h-7 rounded-full bg-yellow-400/20 border border-yellow-400/40 flex items-center justify-center mr-2 mt-1 shrink-0">
+              <Bot className="w-4 h-4 text-yellow-400" />
+            </div>
+            <div className="bg-white/10 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-2.5">
+              <div className="flex gap-1 items-center">
+                <span
+                  className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="px-4 py-3 border-t border-yellow-500/30 bg-black/80 backdrop-blur-sm">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask Luttapi anything…"
+            className="flex-1 bg-white/10 border border-yellow-400/30 rounded-full px-4 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:border-yellow-400/60 transition-colors"
+            data-ocid="luttapi.input"
+            disabled={loading}
+          />
+          <button
+            type="button"
+            onClick={sendMessage}
+            disabled={loading || !input.trim()}
+            className="w-10 h-10 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shrink-0"
+            data-ocid="luttapi.submit_button"
+          >
+            <Send className="w-4 h-4 text-black" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
