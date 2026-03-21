@@ -13,7 +13,6 @@ import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import Char "mo:core/Char";
 
-
 actor {
   include MixinStorage();
 
@@ -78,6 +77,9 @@ actor {
   let meetLinks = Map.empty<Text, MeetLink>();
   let importantMessages = Map.empty<Nat, ImportantMessage>();
   var nextImportantMessageId = 1;
+
+  // Timetable storage (JSON blob)
+  var timetableData : ?Text = null;
 
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -350,5 +352,20 @@ actor {
     allMessages.filter(
       func(msg) { not msg.dismissed }
     );
+  };
+
+  // Timetable - Users only (authenticated members can save and view)
+  public shared ({ caller }) func saveTimetable(data : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save timetable");
+    };
+    timetableData := ?data;
+  };
+
+  public query ({ caller }) func getTimetable() : async ?Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view timetable");
+    };
+    timetableData;
   };
 };

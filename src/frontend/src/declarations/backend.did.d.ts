@@ -96,6 +96,7 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getPhoto' : ActorMethod<[bigint], [] | [Photo]>,
+  'getTimetable' : ActorMethod<[], [] | [string]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'registerAccount' : ActorMethod<
@@ -103,6 +104,7 @@ export interface _SERVICE {
     undefined
   >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'saveTimetable' : ActorMethod<[string], undefined>,
   'sendMessage' : ActorMethod<[string, string], undefined>,
   'updateAccount' : ActorMethod<
     [string, string, string, string, string],

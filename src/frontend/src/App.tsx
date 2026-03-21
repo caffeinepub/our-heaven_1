@@ -1256,16 +1256,6 @@ function HomeScreen({
         </div>
       </div>
 
-      {/* Scroll to top button */}
-      <button
-        type="button"
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className="fixed bottom-5 right-4 z-50 w-11 h-11 rounded-full bg-card border border-gold/40 flex items-center justify-center shadow-lg hover:border-gold transition-all hover:bg-gold/10"
-        title="Scroll to top"
-      >
-        <ArrowUp className="w-5 h-5 text-gold" />
-      </button>
-
       {/* Edit Account Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
@@ -6723,8 +6713,10 @@ function TimeTableScreen({
   onBack: () => void;
 }) {
   const isAaron = true; // all users can edit timetable
+  const { actor } = useActor();
 
   const [activeTab, setActiveTab] = useState<"playing" | "exam">("playing");
+  const [loadingFromBackend, setLoadingFromBackend] = useState(true);
 
   // Playing timetable state
   const [playing, setPlaying] = useState<PlayingTimetableState>(() => {
@@ -6746,6 +6738,26 @@ function TimeTableScreen({
     }
   });
 
+  // Load from backend on mount
+  useEffect(() => {
+    if (!actor) return;
+    actor
+      .getTimetable()
+      .then((result) => {
+        if (result !== null) {
+          try {
+            const data = JSON.parse(result);
+            if (data.playing) setPlaying(data.playing);
+            if (data.examTimetables) setExamTimetables(data.examTimetables);
+          } catch {
+            /* ignore parse errors */
+          }
+        }
+        setLoadingFromBackend(false);
+      })
+      .catch(() => setLoadingFromBackend(false));
+  }, [actor]);
+
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{
     type: "playing" | "exam";
@@ -6759,12 +6771,34 @@ function TimeTableScreen({
   const [newClassName, setNewClassName] = useState("");
   const [showAddClass, setShowAddClass] = useState(false);
 
+  const playingRef = useRef(playing);
+  const examTimetablesRef = useRef(examTimetables);
+  useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
+  useEffect(() => {
+    examTimetablesRef.current = examTimetables;
+  }, [examTimetables]);
+
+  const saveToBothStorages = (
+    p: PlayingTimetableState,
+    exams: ExamTimetable[],
+  ) => {
+    localStorage.setItem("ourheaven_playing_timetable", JSON.stringify(p));
+    localStorage.setItem("ourheaven_exam_timetables", JSON.stringify(exams));
+    if (actor) {
+      actor
+        .saveTimetable(JSON.stringify({ playing: p, examTimetables: exams }))
+        .catch(() => {});
+    }
+  };
+
   const savePlayingToStorage = (data: PlayingTimetableState) => {
-    localStorage.setItem("ourheaven_playing_timetable", JSON.stringify(data));
+    saveToBothStorages(data, examTimetablesRef.current);
   };
 
   const saveExamToStorage = (data: ExamTimetable[]) => {
-    localStorage.setItem("ourheaven_exam_timetables", JSON.stringify(data));
+    saveToBothStorages(playingRef.current, data);
   };
 
   const updatePlayingCell = (rowId: string, colIdx: number, value: string) => {
@@ -6949,6 +6983,16 @@ function TimeTableScreen({
     null;
   if (!activeExamId && examTimetables.length > 0) {
     setActiveExamId(examTimetables[0].id);
+  }
+
+  if (loadingFromBackend) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-yellow-400 animate-pulse text-lg">
+          Loading timetable...
+        </div>
+      </div>
+    );
   }
 
   return (

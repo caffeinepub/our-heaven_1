@@ -80,10 +80,12 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getPhoto(id: bigint): Promise<Photo | null>;
+    getTimetable(): Promise<string | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
     registerAccount(firstName: string, lastName: string, dob: string, phone: string, password: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveTimetable(data: string): Promise<void>;
     sendMessage(sender: string, content: string): Promise<void>;
     updateAccount(phone: string, firstName: string, lastName: string, dob: string, password: string): Promise<void>;
     updateImportantMessage(id: bigint, content: string, author: string): Promise<void>;
