@@ -114,7 +114,8 @@ type Screen =
   | "messaging-hub"
   | "settings"
   | "timetable"
-  | "luttapi";
+  | "luttapi"
+  | "srida-greeting";
 
 interface NotificationItem {
   id: string;
@@ -6227,7 +6228,24 @@ function AppInner() {
               <SplashScreen
                 onComplete={() => {
                   const stored = loadStoredUser();
-                  navigate(stored ? "home" : "welcome");
+                  const fullName = stored
+                    ? `${stored.firstName} ${stored.lastName}`
+                        .trim()
+                        .toLowerCase()
+                    : "";
+                  const first = stored
+                    ? stored.firstName.trim().toLowerCase()
+                    : "";
+                  if (
+                    stored &&
+                    (first === "srida" ||
+                      fullName === "srida s" ||
+                      fullName === "srida")
+                  ) {
+                    navigate("srida-greeting");
+                  } else {
+                    navigate(stored ? "home" : "welcome");
+                  }
                 }}
               />
             </motion.div>
@@ -6587,6 +6605,17 @@ function AppInner() {
                 onBack={() => navigate("home")}
                 currentUser={userData}
               />
+            </motion.div>
+          )}
+          {screen === "srida-greeting" && (
+            <motion.div
+              key="srida-greeting"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <SridaGreetingScreen onComplete={() => navigate("home")} />
             </motion.div>
           )}
           {screen === "messaging-hub" && (
@@ -7485,6 +7514,45 @@ interface LuttapiMessage {
   role: "user" | "ai";
   text: string;
   timestamp: number;
+}
+
+function SridaGreetingScreen({ onComplete }: { onComplete: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onComplete, 5000);
+    return () => clearTimeout(t);
+  }, [onComplete]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "#000",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+    >
+      <img
+        src="/assets/uploads/Screenshot_2026-03-21-08-42-34-79_965bbf4d18d205f782c6b8409c5773a4-1.jpg"
+        alt="Luttapi"
+        style={{
+          width: "192px",
+          height: "192px",
+          objectFit: "contain",
+          marginBottom: "24px",
+        }}
+      />
+      <h1 style={{ fontSize: "2rem", fontWeight: "bold", color: "#facc15" }}>
+        Welcome to Luttapi
+      </h1>
+      <p style={{ color: "rgba(255,255,255,0.6)", marginTop: "8px" }}>
+        Hi Srida! 👋
+      </p>
+    </div>
+  );
 }
 
 function LuttapiScreen({
