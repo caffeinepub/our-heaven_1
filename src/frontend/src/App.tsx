@@ -71,6 +71,20 @@ import {
 } from "react";
 import { toast } from "sonner";
 import type { backendInterface } from "./backend.d.ts";
+
+// Extended interface with additional persistence methods
+interface ExtendedBackend extends backendInterface {
+  getContacts(): Promise<string | null>;
+  saveContacts(data: string): Promise<void>;
+  getPrayers(): Promise<string | null>;
+  savePrayers(data: string): Promise<void>;
+  getRules(): Promise<string | null>;
+  saveRules(data: string): Promise<void>;
+  getQuiz(): Promise<string | null>;
+  saveQuiz(data: string): Promise<void>;
+  getSongs(): Promise<string | null>;
+  saveSongs(data: string): Promise<void>;
+}
 import type {
   Birthday,
   ImportantMessage,
@@ -135,9 +149,9 @@ interface UserData {
 
 // ─── Actor Context ────────────────────────────────────────────────────────────
 
-const ActorContext = createContext<backendInterface | null>(null);
+const ActorContext = createContext<ExtendedBackend | null>(null);
 
-function useBackendActor(): backendInterface | null {
+function useBackendActor(): ExtendedBackend | null {
   return useContext(ActorContext);
 }
 
@@ -513,6 +527,52 @@ function StarsBackground() {
 }
 
 // ─── Screen 1: Splash / Loading ────────────────────────────────────────────────
+
+function LiveClock({ className = "" }: { className?: string }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  return (
+    <div className={`flex flex-col items-center ${className}`}>
+      <span className="text-gold font-bold text-lg leading-tight">
+        {timeStr}
+      </span>
+      <span className="text-muted-foreground text-xs">{dateStr}</span>
+    </div>
+  );
+}
+
+function formatMsgTime(ts: bigint | number): string {
+  const ms = typeof ts === "bigint" ? Number(ts) / 1_000_000 : ts;
+  const d = new Date(ms);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const timeStr = d.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  if (isToday) return timeStr;
+  const dayStr = d.toLocaleDateString("en-US", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+  return `${dayStr} ${timeStr}`;
+}
 
 function SplashScreen({ onComplete }: { onComplete: () => void }) {
   const [count, setCount] = useState(0);
@@ -1020,6 +1080,13 @@ function HomeScreen({
           </div>
         </motion.div>
 
+        {/* Live Clock */}
+        <div className="flex items-center justify-center py-2 mb-3">
+          <div className="flex items-center gap-3 bg-black/30 border border-gold/20 rounded-2xl px-5 py-2">
+            <LiveClock />
+          </div>
+        </div>
+
         {/* Feature Boxes — 4-column grid grouped by section */}
         {(
           [
@@ -1449,22 +1516,27 @@ function HomeScreen({
 function SubPageHeader({
   title,
   onBack,
+  showClock = false,
 }: {
   title: string;
   onBack: () => void;
+  showClock?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
       <h1 className="font-display text-xl font-bold text-gold">{title}</h1>
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={onBack}
-        className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
-        title="Back"
-      >
-        <ArrowLeft className="w-4 h-4" />
-      </Button>
+      <div className="flex items-center gap-2">
+        {showClock && <LiveClock className="text-right" />}
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onBack}
+          className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+          title="Back"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1880,12 +1952,14 @@ function ChatBubble({
   isOwn,
   senderName,
   time,
+  timestamp,
   onDelete,
 }: {
   msg: { content: string; sender: string };
   isOwn: boolean;
   senderName: string;
   time: string;
+  timestamp?: bigint;
   onDelete?: () => void;
 }) {
   const isImageData = msg.content.startsWith("data:image");
@@ -1956,12 +2030,16 @@ function ChatBubble({
             />
           </div>
         ) : (
-          <p
-            className="px-4 py-2.5 text-sm"
-            style={{ color: TEXT_COLORS[colorIdx] }}
-          >
-            {msg.content}
-          </p>
+          <div className="px-4 pb-1 pt-2.5">
+            <p className="text-sm" style={{ color: TEXT_COLORS[colorIdx] }}>
+              {msg.content}
+            </p>
+            {timestamp !== undefined && (
+              <span className="text-[9px] text-muted-foreground/70 mt-0.5 block text-right">
+                {formatMsgTime(timestamp)}
+              </span>
+            )}
+          </div>
         )}
       </div>
       <div
@@ -2190,7 +2268,7 @@ function MessagesScreen({
       <div className="relative min-h-screen celestial-bg flex flex-col overflow-hidden">
         <StarsBackground />
         <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
-          <SubPageHeader title="Chat with Friends" onBack={onBack} />
+          <SubPageHeader title="Chat with Friends" onBack={onBack} showClock />
           <div className="flex-1 overflow-y-auto py-4">
             <p className="text-muted-foreground text-sm mb-4 text-center">
               Select a person to start a private conversation
@@ -2254,6 +2332,7 @@ function MessagesScreen({
             setMessages([]);
             setLocalMediaMsgs([]);
           }}
+          showClock
         />
 
         <div className="relative flex-1 min-h-0">
@@ -2295,6 +2374,7 @@ function MessagesScreen({
                         isOwn={msg.sender === user.firstName}
                         senderName={msg.sender}
                         time={formatTime(msg.timestamp)}
+                        timestamp={msg.timestamp}
                         onDelete={
                           canDelete
                             ? async () => {
@@ -3218,7 +3298,7 @@ function YourIdeasScreen({
     <div className="relative min-h-screen celestial-bg overflow-y-auto">
       <StarsBackground />
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
-        <SubPageHeader title="Your Ideas" onBack={onBack} />
+        <SubPageHeader title="Your Ideas" onBack={onBack} showClock />
         <div className="space-y-3 mb-4">
           {ideas.length === 0 && (
             <div className="text-center py-16">
@@ -3422,6 +3502,7 @@ function CalendarScreen({ onBack }: { onBack: () => void }) {
     Array<{ id: number; title: string; date: string }>
   >([]);
   const [addOpen, setAddOpen] = useState(false);
+
   const [form, setForm] = useState({ title: "", date: "" });
 
   const handleAdd = () => {
@@ -3570,9 +3651,7 @@ function SchoolWorksScreen({ onBack }: { onBack: () => void }) {
 function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
   const leaderAccess = isLeader(user.firstName, user.lastName);
   const isAaron = user.firstName.trim().toLowerCase() === "aaron";
-  const [rulesPhoto, setRulesPhoto] = useState<string | null>(null);
-  const rulesPhotoInputRef = useRef<HTMLInputElement>(null);
-  const [rules, setRules] = useState([
+  const DEFAULT_RULES = [
     "NO BAD WORDS",
     "NO SPAMMING",
     "BE FRIENDLY TO OTHERS",
@@ -3583,10 +3662,42 @@ function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
     "QUIZ ONLY ABOUT GAMES THINGS",
     "DO NOT MAKE FUN OF OTHERS IF THEY ARE IN ANY PROBLEM",
     "IF SOMEONE NEED NOTES OR INFO SEND THEM THE ANSWER",
-  ]);
+  ];
+  const { actor } = useActor();
+  const [rulesPhoto, setRulesPhoto] = useState<string | null>(null);
+  const rulesPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [rules, setRules] = useState<string[]>(DEFAULT_RULES);
   const [editing, setEditing] = useState(false);
   const [editTexts, setEditTexts] = useState<string[]>([]);
   const [newRule, setNewRule] = useState("");
+
+  // Load from backend on mount
+  useEffect(() => {
+    if (!actor) return;
+    (actor as ExtendedBackend)
+      .getRules()
+      .then((result: string | null) => {
+        if (result) {
+          try {
+            const data = JSON.parse(result);
+            if (data.rules) setRules(data.rules);
+            if (data.photoData !== undefined) setRulesPhoto(data.photoData);
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [actor]);
+
+  const persistRules = async (r: string[], p: string | null) => {
+    if (!actor) return;
+    try {
+      await (actor as ExtendedBackend).saveRules(
+        JSON.stringify({ rules: r, photoData: p }),
+      );
+    } catch (e) {
+      console.error("saveRules failed", e);
+    }
+  };
 
   const startEdit = () => {
     setEditTexts([...rules]);
@@ -3595,6 +3706,7 @@ function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
   const saveEdit = () => {
     const cleaned = editTexts.map((r) => r.trim()).filter((r) => r.length > 0);
     setRules(cleaned);
+    persistRules(cleaned, rulesPhoto);
     setEditing(false);
     setNewRule("");
   };
@@ -3742,7 +3854,9 @@ function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
                   if (!file) return;
                   const reader = new FileReader();
                   reader.onload = (ev) => {
-                    setRulesPhoto(ev.target?.result as string);
+                    const photoData = ev.target?.result as string;
+                    setRulesPhoto(photoData);
+                    persistRules(rules, photoData).catch(() => {});
                   };
                   reader.readAsDataURL(file);
                   e.target.value = "";
@@ -3760,7 +3874,10 @@ function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
                   <button
                     type="button"
                     data-ocid="rules.delete_button"
-                    onClick={() => setRulesPhoto(null)}
+                    onClick={() => {
+                      setRulesPhoto(null);
+                      persistRules(rules, null).catch(() => {});
+                    }}
                     className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
                   >
                     <X className="w-4 h-4" />
@@ -3930,7 +4047,7 @@ interface PrayerEntry {
 }
 
 function PrayerScreen({ onBack }: { onBack: () => void }) {
-  const [prayers, setPrayers] = useState<PrayerEntry[]>([
+  const DEFAULT_PRAYERS: PrayerEntry[] = [
     {
       id: "1",
       text: "Lord, bless our group with love, peace, and wisdom. Amen.",
@@ -3941,33 +4058,65 @@ function PrayerScreen({ onBack }: { onBack: () => void }) {
       text: "May God guide our steps and keep us together always. Amen.",
       author: "Everyone",
     },
-  ]);
+  ];
+  const { actor } = useActor();
+  const [prayers, setPrayers] = useState<PrayerEntry[]>(DEFAULT_PRAYERS);
   const [showAdd, setShowAdd] = useState(false);
   const [newPrayer, setNewPrayer] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
+  // Load from backend on mount
+  useEffect(() => {
+    if (!actor) return;
+    (actor as ExtendedBackend)
+      .getPrayers()
+      .then((result: string | null) => {
+        if (result) {
+          try {
+            setPrayers(JSON.parse(result));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [actor]);
+
+  const savePrayers = async (data: PrayerEntry[]) => {
+    if (!actor) return;
+    try {
+      await (actor as ExtendedBackend).savePrayers(JSON.stringify(data));
+    } catch (e) {
+      console.error("savePrayers failed", e);
+    }
+  };
+
   const addPrayer = () => {
     if (!newPrayer.trim()) return;
-    setPrayers((prev) => [
-      ...prev,
+    const updated = [
+      ...prayers,
       { id: Date.now().toString(), text: newPrayer.trim(), author: "Me" },
-    ]);
+    ];
+    setPrayers(updated);
+    savePrayers(updated);
     setNewPrayer("");
     setShowAdd(false);
     toast.success("Prayer added!");
   };
 
   const saveEdit = (id: string) => {
-    setPrayers((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, text: editText } : p)),
+    const updated = prayers.map((p) =>
+      p.id === id ? { ...p, text: editText } : p,
     );
+    setPrayers(updated);
+    savePrayers(updated);
     setEditId(null);
     toast.success("Prayer updated!");
   };
 
   const deletePrayer = (id: string) => {
-    setPrayers((prev) => prev.filter((p) => p.id !== id));
+    const updated = prayers.filter((p) => p.id !== id);
+    setPrayers(updated);
+    savePrayers(updated);
     toast.success("Prayer removed");
   };
 
@@ -4112,7 +4261,7 @@ interface SongEntry {
 }
 
 function IndianSongsScreen({ onBack }: { onBack: () => void }) {
-  const [items, setItems] = useState<SongEntry[]>([
+  const DEFAULT_SONGS: SongEntry[] = [
     {
       id: "1",
       title: "Om Namah Shivaya",
@@ -4136,17 +4285,43 @@ function IndianSongsScreen({ onBack }: { onBack: () => void }) {
       youtubeUrl:
         "https://www.youtube.com/results?search_query=raghupati+raghav+bhajan",
     },
-  ]);
+  ];
+  const { actor } = useActor();
+  const [items, setItems] = useState<SongEntry[]>(DEFAULT_SONGS);
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newType, setNewType] = useState<"song" | "prayer">("prayer");
   const [newUrl, setNewUrl] = useState("");
 
+  // Load from backend on mount
+  useEffect(() => {
+    if (!actor) return;
+    (actor as ExtendedBackend)
+      .getSongs()
+      .then((result: string | null) => {
+        if (result) {
+          try {
+            setItems(JSON.parse(result));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [actor]);
+
+  const saveSongs = async (data: SongEntry[]) => {
+    if (!actor) return;
+    try {
+      await (actor as ExtendedBackend).saveSongs(JSON.stringify(data));
+    } catch (e) {
+      console.error("saveSongs failed", e);
+    }
+  };
+
   const addItem = () => {
     if (!newTitle.trim() || !newContent.trim()) return;
-    setItems((prev) => [
-      ...prev,
+    const updated = [
+      ...items,
       {
         id: Date.now().toString(),
         title: newTitle.trim(),
@@ -4154,7 +4329,9 @@ function IndianSongsScreen({ onBack }: { onBack: () => void }) {
         content: newContent.trim(),
         youtubeUrl: newUrl.trim(),
       },
-    ]);
+    ];
+    setItems(updated);
+    saveSongs(updated);
     setNewTitle("");
     setNewContent("");
     setNewUrl("");
@@ -4164,7 +4341,9 @@ function IndianSongsScreen({ onBack }: { onBack: () => void }) {
   };
 
   const deleteItem = (id: string) => {
-    setItems((prev) => prev.filter((x) => x.id !== id));
+    const updated = items.filter((x) => x.id !== id);
+    setItems(updated);
+    saveSongs(updated);
     toast.success("Removed");
   };
 
@@ -4497,24 +4676,52 @@ function MessagingHubScreen({
 }
 
 function CallingScreen({ onBack }: { onBack: () => void }) {
-  const [contacts, setContacts] = useState<ContactEntry[]>([
+  const DEFAULT_CONTACTS: ContactEntry[] = [
     { id: "1", name: "Aaron David Jojo", phone: "" },
     { id: "2", name: "Nevveen", phone: "" },
-  ]);
+  ];
+  const { actor } = useActor();
+  const [contacts, setContacts] = useState<ContactEntry[]>(DEFAULT_CONTACTS);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
 
+  // Load from backend on mount
+  useEffect(() => {
+    if (!actor) return;
+    (actor as ExtendedBackend)
+      .getContacts()
+      .then((result: string | null) => {
+        if (result) {
+          try {
+            setContacts(JSON.parse(result));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [actor]);
+
+  const saveContacts = async (data: ContactEntry[]) => {
+    if (!actor) return;
+    try {
+      await (actor as ExtendedBackend).saveContacts(JSON.stringify(data));
+    } catch (e) {
+      console.error("saveContacts failed", e);
+    }
+  };
+
   const addContact = () => {
     if (!newName.trim() || !newPhone.trim()) return;
-    setContacts((prev) => [
-      ...prev,
+    const updated = [
+      ...contacts,
       {
         id: Date.now().toString(),
         name: newName.trim(),
         phone: newPhone.trim(),
       },
-    ]);
+    ];
+    setContacts(updated);
+    saveContacts(updated);
     setNewName("");
     setNewPhone("");
     setShowAdd(false);
@@ -4522,7 +4729,9 @@ function CallingScreen({ onBack }: { onBack: () => void }) {
   };
 
   const deleteContact = (id: string) => {
-    setContacts((prev) => prev.filter((c) => c.id !== id));
+    const updated = contacts.filter((c) => c.id !== id);
+    setContacts(updated);
+    saveContacts(updated);
     toast.success("Contact removed");
   };
 
@@ -4805,7 +5014,7 @@ function GroupChatScreen({
     <div className="relative min-h-screen celestial-bg flex flex-col overflow-hidden">
       <StarsBackground />
       <div className="relative z-10 flex flex-col h-screen max-w-lg mx-auto w-full px-4 pt-4">
-        <SubPageHeader title="Group Chat" onBack={onBack} />
+        <SubPageHeader title="Group Chat" onBack={onBack} showClock />
 
         <div className="relative flex-1 min-h-0">
           <div ref={scrollRef} className="h-full overflow-y-auto mb-0">
@@ -4838,6 +5047,7 @@ function GroupChatScreen({
                         isOwn={msg.sender === user.firstName}
                         senderName={msg.sender}
                         time={formatTime(msg.timestamp)}
+                        timestamp={msg.timestamp}
                         onDelete={
                           canDelete
                             ? () => {
@@ -5556,8 +5766,34 @@ function GamesScreen({ onBack }: { onBack: () => void }) {
 
 function QuizScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
   const isAdmin = isLeader(user.firstName, user.lastName);
+  const { actor } = useActor();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+
+  // Load from backend on mount
+  useEffect(() => {
+    if (!actor) return;
+    (actor as ExtendedBackend)
+      .getQuiz()
+      .then((result: string | null) => {
+        if (result) {
+          try {
+            setQuestions(JSON.parse(result));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [actor]);
+
+  const saveQuizToBackend = async (data: QuizQuestion[]) => {
+    if (!actor) return;
+    try {
+      await (actor as ExtendedBackend).saveQuiz(JSON.stringify(data));
+    } catch (e) {
+      console.error("saveQuiz failed", e);
+    }
+  };
+
   const [form, setForm] = useState({
     question: "",
     a: "",
@@ -5583,14 +5819,18 @@ function QuizScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
       correctIndex: form.correct,
       marks: form.marks,
     };
-    setQuestions((p) => [...p, q]);
+    const updatedQ = [...questions, q];
+    setQuestions(updatedQ);
+    saveQuizToBackend(updatedQ);
     setForm({ question: "", a: "", b: "", c: "", d: "", correct: 0, marks: 1 });
     setAddOpen(false);
     toast.success("Question added!");
   };
 
   const handleDelete = (id: number) => {
-    setQuestions((p) => p.filter((q) => q.id !== id));
+    const updatedQ = questions.filter((q) => q.id !== id);
+    setQuestions(updatedQ);
+    saveQuizToBackend(updatedQ);
     toast.success("Question removed");
   };
 
@@ -6212,7 +6452,7 @@ function AppInner() {
   }, []);
 
   return (
-    <ActorContext.Provider value={actor}>
+    <ActorContext.Provider value={actor as ExtendedBackend | null}>
       <div className="min-h-screen bg-background text-foreground font-sans">
         <Toaster richColors position="top-center" />
         <MusicPlayer />
@@ -6681,7 +6921,14 @@ function AppInner() {
       )}
 
       {/* Luttapi AI Floating Action Button */}
-      {screen !== "luttapi" && (
+      {![
+        "splash",
+        "welcome",
+        "srida-greeting",
+        "register",
+        "account-ready",
+        "luttapi",
+      ].includes(screen) && (
         <button
           type="button"
           data-ocid="luttapi.fab"
@@ -7142,7 +7389,7 @@ function TimeTableScreen({
                     {DAYS.map((day) => (
                       <th
                         key={day}
-                        className="px-3 py-2 text-center text-yellow-300 font-bold border-r border-yellow-500/20 min-w-[70px] last:border-r-0"
+                        className="px-3 py-2 text-center text-yellow-400 font-bold border-r border-yellow-500/20 min-w-[70px] last:border-r-0"
                       >
                         {day}
                       </th>

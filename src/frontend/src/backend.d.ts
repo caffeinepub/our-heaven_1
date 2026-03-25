@@ -91,4 +91,14 @@ export interface backendInterface {
     updateImportantMessage(id: bigint, content: string, author: string): Promise<void>;
     uploadPhoto(blob: ExternalBlob): Promise<bigint>;
     verifyOTP(phone: string, code: bigint): Promise<boolean>;
+    getContacts(): Promise<string | null>;
+    saveContacts(data: string): Promise<void>;
+    getPrayers(): Promise<string | null>;
+    savePrayers(data: string): Promise<void>;
+    getRules(): Promise<string | null>;
+    saveRules(data: string): Promise<void>;
+    getQuiz(): Promise<string | null>;
+    saveQuiz(data: string): Promise<void>;
+    getSongs(): Promise<string | null>;
+    saveSongs(data: string): Promise<void>;
 }

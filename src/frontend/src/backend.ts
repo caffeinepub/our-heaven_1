@@ -748,7 +748,78 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getContacts(): Promise<string | null> {
+        const result = await (this.actor as any).getContacts();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveContacts(data: string): Promise<void> {
+        await (this.actor as any).saveContacts(data);
+    }
+    async getPrayers(): Promise<string | null> {
+        const result = await (this.actor as any).getPrayers();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async savePrayers(data: string): Promise<void> {
+        await (this.actor as any).savePrayers(data);
+    }
+    async getRules(): Promise<string | null> {
+        const result = await (this.actor as any).getRules();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveRules(data: string): Promise<void> {
+        await (this.actor as any).saveRules(data);
+    }
+    async getQuiz(): Promise<string | null> {
+        const result = await (this.actor as any).getQuiz();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveQuiz(data: string): Promise<void> {
+        await (this.actor as any).saveQuiz(data);
+    }
+    async getSongs(): Promise<string | null> {
+        const result = await (this.actor as any).getSongs();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveSongs(data: string): Promise<void> {
+        await (this.actor as any).saveSongs(data);
+    }
+    async getContacts(): Promise<string | null> {
+        const result = await (this.actor as any).getContacts();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveContacts(data: string): Promise<void> {
+        await (this.actor as any).saveContacts(data);
+    }
+    async getPrayers(): Promise<string | null> {
+        const result = await (this.actor as any).getPrayers();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async savePrayers(data: string): Promise<void> {
+        await (this.actor as any).savePrayers(data);
+    }
+    async getRules(): Promise<string | null> {
+        const result = await (this.actor as any).getRules();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveRules(data: string): Promise<void> {
+        await (this.actor as any).saveRules(data);
+    }
+    async getQuiz(): Promise<string | null> {
+        const result = await (this.actor as any).getQuiz();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveQuiz(data: string): Promise<void> {
+        await (this.actor as any).saveQuiz(data);
+    }
+    async getSongs(): Promise<string | null> {
+        const result = await (this.actor as any).getSongs();
+        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
+    }
+    async saveSongs(data: string): Promise<void> {
+        await (this.actor as any).saveSongs(data);
+    }
 }
+
 function from_candid_UserRole_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
     return from_candid_variant_n12(_uploadFile, _downloadFile, value);
 }

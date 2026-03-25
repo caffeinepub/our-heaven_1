@@ -81,6 +81,14 @@ actor {
   // Timetable storage (JSON blob)
   var timetableData : ?Text = null;
 
+  // Persistent data for all boxes (JSON blobs)
+  var contactsData : ?Text = null;
+  var prayersData : ?Text = null;
+  var songsData : ?Text = null;
+  var rulesData : ?Text = null;
+  var quizData : ?Text = null;
+
+
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
   let userProfiles = Map.empty<Principal, UserProfile>();
@@ -368,4 +376,24 @@ actor {
     };
     timetableData;
   };
+
+  // Calling Contacts
+  public shared func saveContacts(data : Text) : async () { contactsData := ?data; };
+  public query func getContacts() : async ?Text { contactsData };
+
+  // Prayers
+  public shared func savePrayers(data : Text) : async () { prayersData := ?data; };
+  public query func getPrayers() : async ?Text { prayersData };
+
+  // Indian Songs and Prayers
+  public shared func saveSongs(data : Text) : async () { songsData := ?data; };
+  public query func getSongs() : async ?Text { songsData };
+
+  // Rules (text + photo)
+  public shared func saveRules(data : Text) : async () { rulesData := ?data; };
+  public query func getRules() : async ?Text { rulesData };
+
+  // Quiz Questions
+  public shared func saveQuiz(data : Text) : async () { quizData := ?data; };
+  public query func getQuiz() : async ?Text { quizData };
 };
