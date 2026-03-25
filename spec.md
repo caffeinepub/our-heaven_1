@@ -1,29 +1,28 @@
 # Our Heaven
 
 ## Current State
-The app has 23+ feature boxes organized in sections (Community, Learning, Activities, People, Settings) on a 4-column grid homepage with a 3D starfield background. The Learning section contains: Quiz Box, School Works, Home Works, Time Table, Dates & Calendar, Attendance & Level.
+The app has an AttendanceScreen component that uses hardcoded members (Aaron, Nevveen), does not load registered users, does not filter by date, and does not persist data to the backend. The blank screen issue affects certain users (Don) during app load.
 
 ## Requested Changes (Diff)
 
 ### Add
-- New AI chat box named **"Luttapi"** in the Learning section
-- Chat-style UI where all members can type any question and receive an AI-generated answer
-- Uses free public AI API (Pollinations AI text API - no key required) to answer questions
-- Shows a loading indicator while waiting for response
-- Chat history displayed in the session (not persisted to backend)
-- "Luttapi" branded header with a Bot/Sparkles icon
+- Backend: `saveAttendance(data: Text)` and `getAttendance()` functions for persistent storage
+- AttendanceScreen: date picker so leaders can mark attendance for a specific date
+- AttendanceScreen: auto-load all registered users from `getAllAccounts()` instead of hardcoded list
+- AttendanceScreen: only leaders (Aaron David, Jojo, Nevveen) can toggle Present/Absent; all members can view
+- AttendanceScreen: persist attendance data to backend via `saveAttendance`
+- Blank screen fix: add error boundary / null guard in app load so users like Don don't see a blank screen
 
 ### Modify
-- Learning section: add Luttapi box item
-- Screen type union: add `"luttapi"` screen
-- Import a suitable icon (Bot or Sparkles) from lucide-react
+- AttendanceScreen: replace hardcoded members with real registered accounts
+- AttendanceScreen: add date selector at top; show attendance records per date
+- Backend: add attendanceData variable and save/get functions
 
 ### Remove
-- Nothing removed
+- Hardcoded member list in AttendanceScreen
+- "Add Member" button (members come from registration now)
 
 ## Implementation Plan
-1. Add `"luttapi"` to the Screen type
-2. Import Bot (or Sparkles) icon from lucide-react
-3. Add Luttapi box to the Learning section items array
-4. Create LuttapiScreen component with a chat UI that calls Pollinations AI text API (`https://text.pollinations.ai/`) for free AI responses
-5. Wire up the screen in the navigation renderer
+1. Add `var attendanceData: ?Text = null` + `saveAttendance`/`getAttendance` to backend main.mo
+2. Rebuild AttendanceScreen: fetch all accounts, show date picker, mark present/absent per date, save/load from backend
+3. Fix blank screen: add try/catch around loadStoredUser() and ensure navigate always resolves to a valid screen

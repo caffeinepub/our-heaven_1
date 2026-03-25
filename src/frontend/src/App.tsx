@@ -84,6 +84,17 @@ interface ExtendedBackend extends backendInterface {
   saveQuiz(data: string): Promise<void>;
   getSongs(): Promise<string | null>;
   saveSongs(data: string): Promise<void>;
+  getAttendance(): Promise<string | null>;
+  saveAttendance(data: string): Promise<void>;
+  getAllAccounts(): Promise<
+    Array<{
+      firstName: string;
+      lastName: string;
+      phone: string;
+      dob: string;
+      password: string;
+    }>
+  >;
 }
 import type {
   Birthday,
@@ -3909,132 +3920,187 @@ function AttendanceScreen({
   onBack,
 }: { user: UserData; onBack: () => void }) {
   const isAdmin = isLeader(user.firstName, user.lastName);
+  const actor = useBackendActor();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [attendance, setAttendance] = useState<
+    Record<string, Record<string, "Present" | "Absent">>
+  >({});
   const [members, setMembers] = useState<
-    Array<{
-      id: number;
-      name: string;
-      status: "Present" | "Leave";
-      level: string;
-    }>
-  >([
-    { id: 1, name: "Aaron", status: "Present", level: "Admin" },
-    { id: 2, name: "Nevveen", status: "Present", level: "Admin" },
-  ]);
-  const [addOpen, setAddOpen] = useState(false);
-  const [newName, setNewName] = useState("");
+    Array<{ firstName: string; lastName: string; phone: string }>
+  >([]);
+  const [saving, setSaving] = useState(false);
 
-  const toggleStatus = (id: number) => {
+  // Load members and attendance on mount
+  useEffect(() => {
+    async function load() {
+      if (!actor) return;
+      try {
+        const [accs, attData] = await Promise.all([
+          (actor as ExtendedBackend).getAllAccounts(),
+          (actor as ExtendedBackend).getAttendance(),
+        ]);
+        setMembers(accs || []);
+        if (attData) {
+          try {
+            setAttendance(JSON.parse(attData));
+          } catch {}
+        }
+      } catch {}
+    }
+    load();
+  }, [actor]);
+
+  const getStatusForMember = (name: string): "Present" | "Absent" => {
+    return attendance[selectedDate]?.[name] ?? "Present";
+  };
+
+  const toggleStatus = async (name: string) => {
     if (!isAdmin) return;
-    setMembers((p) =>
-      p.map((m) =>
-        m.id === id
-          ? { ...m, status: m.status === "Present" ? "Leave" : "Present" }
-          : m,
-      ),
-    );
+    const current = getStatusForMember(name);
+    const next: "Present" | "Absent" =
+      current === "Present" ? "Absent" : "Present";
+    const updated = {
+      ...attendance,
+      [selectedDate]: {
+        ...(attendance[selectedDate] || {}),
+        [name]: next,
+      },
+    };
+    setAttendance(updated);
+    if (!actor) return;
+    setSaving(true);
+    try {
+      await (actor as ExtendedBackend).saveAttendance(JSON.stringify(updated));
+    } catch {}
+    setSaving(false);
   };
 
-  const handleAdd = () => {
-    if (!newName.trim()) return;
-    setMembers((p) => [
-      ...p,
-      {
-        id: Date.now(),
-        name: newName.trim(),
-        status: "Present",
-        level: "Member",
-      },
-    ]);
-    setNewName("");
-    setAddOpen(false);
+  const changeDate = (delta: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(d.toISOString().slice(0, 10));
   };
+
+  const presentCount = members.filter(
+    (m) => getStatusForMember(`${m.firstName} ${m.lastName}`) === "Present",
+  ).length;
+  const absentCount = members.length - presentCount;
 
   return (
     <div className="relative min-h-screen celestial-bg overflow-y-auto">
       <StarsBackground />
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
-        <SubPageHeader title="Attendance & Level" onBack={onBack} />
-        {isAdmin && (
-          <div className="mb-4">
-            <Button
-              onClick={() => setAddOpen(true)}
-              className="bg-gold text-deep-space hover:bg-accent rounded-xl text-sm"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Member
-            </Button>
-          </div>
-        )}
-        <div className="card-celestial rounded-2xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-4 py-3 text-muted-foreground">
-                  Name
-                </th>
-                <th className="text-left px-4 py-3 text-muted-foreground">
-                  Status
-                </th>
-                <th className="text-left px-4 py-3 text-muted-foreground">
-                  Level
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr
-                  key={m.id}
-                  className="border-b border-border/50 last:border-0"
-                >
-                  <td className="px-4 py-3 text-foreground font-medium">
-                    {m.name}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(m.id)}
-                      disabled={!isAdmin}
-                      className={`px-2 py-1 rounded-lg text-xs font-medium ${m.status === "Present" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"} ${isAdmin ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
-                    >
-                      {m.status}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{m.level}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-display text-gold">
-              Add Member
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-2">
-            <Label className="text-muted-foreground text-sm">Name</Label>
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Member name"
-              className="bg-input border-border mt-1"
+        <SubPageHeader title="Attendance" onBack={onBack} />
+
+        {/* Date selector */}
+        <div className="flex items-center justify-between mb-4 card-celestial rounded-2xl px-4 py-3">
+          <button
+            type="button"
+            onClick={() => changeDate(-1)}
+            className="w-8 h-8 rounded-full bg-gold/20 text-gold flex items-center justify-center hover:bg-gold/40 transition-colors"
+            data-ocid="attendance.pagination_prev"
+          >
+            ‹
+          </button>
+          <div className="text-center">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent text-gold font-semibold text-center border-none outline-none cursor-pointer"
+              data-ocid="attendance.input"
             />
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAdd}
-              className="bg-gold text-deep-space hover:bg-accent"
-            >
-              Add
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <button
+            type="button"
+            onClick={() => changeDate(1)}
+            className="w-8 h-8 rounded-full bg-gold/20 text-gold flex items-center justify-center hover:bg-gold/40 transition-colors"
+            data-ocid="attendance.pagination_next"
+          >
+            ›
+          </button>
+        </div>
+
+        {/* Summary */}
+        <div className="flex gap-3 mb-4">
+          <div className="flex-1 card-celestial rounded-xl py-3 text-center">
+            <div className="text-2xl font-bold text-green-400">
+              {presentCount}
+            </div>
+            <div className="text-xs text-muted-foreground">Present</div>
+          </div>
+          <div className="flex-1 card-celestial rounded-xl py-3 text-center">
+            <div className="text-2xl font-bold text-red-400">{absentCount}</div>
+            <div className="text-xs text-muted-foreground">Absent</div>
+          </div>
+          <div className="flex-1 card-celestial rounded-xl py-3 text-center">
+            <div className="text-2xl font-bold text-gold">{members.length}</div>
+            <div className="text-xs text-muted-foreground">Total</div>
+          </div>
+        </div>
+
+        {saving && (
+          <div
+            className="text-center text-xs text-gold mb-2"
+            data-ocid="attendance.loading_state"
+          >
+            Saving…
+          </div>
+        )}
+
+        {!isAdmin && (
+          <div className="mb-3 text-center text-xs text-muted-foreground bg-white/5 rounded-xl py-2">
+            Only leaders can mark attendance
+          </div>
+        )}
+
+        {members.length === 0 ? (
+          <div
+            className="card-celestial rounded-2xl p-8 text-center text-muted-foreground"
+            data-ocid="attendance.empty_state"
+          >
+            No members registered yet
+          </div>
+        ) : (
+          <div
+            className="card-celestial rounded-2xl overflow-hidden"
+            data-ocid="attendance.table"
+          >
+            {members.map((m, idx) => {
+              const name = `${m.firstName} ${m.lastName}`;
+              const status = getStatusForMember(name);
+              return (
+                <div
+                  key={name}
+                  className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-0"
+                  data-ocid={`attendance.item.${idx + 1}`}
+                >
+                  <div>
+                    <div className="font-medium text-foreground">{name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {m.phone}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleStatus(name)}
+                    disabled={!isAdmin}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      status === "Present"
+                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                        : "bg-red-500/20 text-red-400 border border-red-500/30"
+                    } ${isAdmin ? "cursor-pointer hover:opacity-80 active:scale-95" : "cursor-default opacity-70"}`}
+                    data-ocid={`attendance.toggle.${idx + 1}`}
+                  >
+                    {status === "Present" ? "✓ Present" : "✗ Absent"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -6467,24 +6533,31 @@ function AppInner() {
             >
               <SplashScreen
                 onComplete={() => {
-                  const stored = loadStoredUser();
-                  const fullName = stored
-                    ? `${stored.firstName} ${stored.lastName}`
-                        .trim()
-                        .toLowerCase()
-                    : "";
-                  const first = stored
-                    ? stored.firstName.trim().toLowerCase()
-                    : "";
-                  if (
-                    stored &&
-                    (first === "srida" ||
+                  try {
+                    const stored = loadStoredUser();
+                    if (
+                      !stored ||
+                      typeof stored !== "object" ||
+                      !stored.firstName
+                    ) {
+                      navigate("welcome");
+                      return;
+                    }
+                    const fullName = `${stored.firstName} ${stored.lastName}`
+                      .trim()
+                      .toLowerCase();
+                    const first = stored.firstName.trim().toLowerCase();
+                    if (
+                      first === "srida" ||
                       fullName === "srida s" ||
-                      fullName === "srida")
-                  ) {
-                    navigate("srida-greeting");
-                  } else {
-                    navigate(stored ? "home" : "welcome");
+                      fullName === "srida"
+                    ) {
+                      navigate("srida-greeting");
+                    } else {
+                      navigate("home");
+                    }
+                  } catch {
+                    navigate("welcome");
                   }
                 }}
               />

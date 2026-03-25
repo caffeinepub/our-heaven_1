@@ -87,6 +87,7 @@ actor {
   var songsData : ?Text = null;
   var rulesData : ?Text = null;
   var quizData : ?Text = null;
+  var attendanceData : ?Text = null;
 
 
   let accessControlState = AccessControl.initState();
@@ -392,6 +393,10 @@ actor {
   // Rules (text + photo)
   public shared func saveRules(data : Text) : async () { rulesData := ?data; };
   public query func getRules() : async ?Text { rulesData };
+
+  // Attendance
+  public shared func saveAttendance(data : Text) : async () { attendanceData := ?data; };
+  public query func getAttendance() : async ?Text { attendanceData };
 
   // Quiz Questions
   public shared func saveQuiz(data : Text) : async () { quizData := ?data; };
