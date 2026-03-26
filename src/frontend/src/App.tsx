@@ -639,7 +639,7 @@ function SplashScreen({ onComplete }: { onComplete: () => void }) {
           </span>
         </motion.div>
         <div className="text-muted-foreground font-sans text-sm tracking-widest uppercase">
-          Loading Our Heaven
+          Loading We are friends
         </div>
       </div>
     </div>
@@ -663,8 +663,8 @@ function WelcomeScreen({ onCreateAccount }: { onCreateAccount: () => void }) {
         transition={{ duration: 0.7 }}
       >
         <motion.img
-          src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
-          alt="Our Heaven"
+          src="/assets/generated/we-are-friends-logo-transparent.dim_200x200.png"
+          alt="We are friends"
           className="w-28 h-28 animate-float"
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -673,7 +673,7 @@ function WelcomeScreen({ onCreateAccount }: { onCreateAccount: () => void }) {
 
         <div>
           <h1 className="font-display text-4xl md:text-5xl font-bold text-gold text-glow-gold mb-3">
-            Our Heaven
+            We are friends
           </h1>
           <p className="text-muted-foreground text-lg font-sans">
             Chat, learn, and grow together in our sacred space
@@ -825,7 +825,7 @@ function RegistrationForm({ onNext }: RegistrationFormProps) {
       >
         <div className="text-center mb-8">
           <img
-            src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
+            src="/assets/generated/we-are-friends-logo-transparent.dim_200x200.png"
             alt="Logo"
             className="w-14 h-14 mx-auto mb-4"
           />
@@ -833,7 +833,7 @@ function RegistrationForm({ onNext }: RegistrationFormProps) {
             Create Account
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Join Our Heaven today
+            Join We are friends today
           </p>
         </div>
 
@@ -935,7 +935,7 @@ function AccountReadyScreen({
           transition={{ delay: 0.4 }}
         >
           <h1 className="font-display text-3xl md:text-4xl font-bold text-gold text-glow-gold mb-3">
-            Welcome to Our Heaven, {firstName}!
+            Welcome to We are friends, {firstName}!
           </h1>
           <p className="text-foreground/80 text-lg font-sans">
             Your account is ready 🌟
@@ -956,23 +956,11 @@ interface HomeScreenProps {
   notificationCount?: number;
 }
 
-const LEADERS = [
-  "aaron",
-  "jojo",
-  "nevveen",
-  "nevveen ps",
-  "aaron david",
-  "aaron david jojo",
-];
+const LEADER_KEYWORDS = ["aaron", "jojo", "nevveen", "neevven"];
 
 function isLeader(firstName: string, lastName?: string): boolean {
-  const first = firstName.trim().toLowerCase();
-  const full = lastName ? `${first} ${lastName.trim().toLowerCase()}` : first;
-  return (
-    LEADERS.includes(first) ||
-    LEADERS.includes(full) ||
-    LEADERS.some((l) => first.startsWith(l) || l.startsWith(first))
-  );
+  const combined = `${firstName} ${lastName ?? ""}`.toLowerCase();
+  return LEADER_KEYWORDS.some((kw) => combined.includes(kw));
 }
 
 function HomeScreen({
@@ -1031,13 +1019,13 @@ function HomeScreen({
           </Button>
           <div className="flex items-center gap-3 flex-1 justify-center">
             <img
-              src="/assets/generated/our-heaven-logo-transparent.dim_200x200.png"
-              alt="Our Heaven"
+              src="/assets/generated/we-are-friends-logo-transparent.dim_200x200.png"
+              alt="We are friends"
               className="w-12 h-12"
             />
             <div>
               <h1 className="font-display text-2xl font-bold text-gold">
-                Our Heaven
+                We are friends
               </h1>
               <p className="text-muted-foreground text-xs">Your sacred space</p>
             </div>
@@ -1498,7 +1486,7 @@ function HomeScreen({
             <button
               type="button"
               onClick={() => {
-                localStorage.removeItem("our-heaven-user");
+                localStorage.removeItem("we-are-friends-user");
                 setSettingsOpen(false);
                 window.location.reload();
               }}
@@ -2098,7 +2086,7 @@ function MessagesScreen({
 
   // localStorage key for this private chat
   const mediaKey = selectedContact
-    ? `our-heaven-media-msgs-${[user.firstName, selectedContact].sort().join("-")}`
+    ? `we-are-friends-media-msgs-${[user.firstName, selectedContact].sort().join("-")}`
     : null;
 
   // Load media messages from IndexedDB when contact selected
@@ -2157,13 +2145,20 @@ function MessagesScreen({
   const loadMessages = useCallback(async () => {
     if (!actor) return;
     try {
-      const allMsgs = await actor.getAllMessages();
-      // Extract unique senders for contact picker
-      const senders = Array.from(
-        new Set(
-          allMsgs.map((m) => m.sender).filter((s) => s !== user.firstName),
-        ),
-      );
+      const [allMsgs, accs] = await Promise.all([
+        actor.getAllMessages(),
+        (actor as ExtendedBackend).getAllAccounts().catch(() => []),
+      ]);
+      // Build contact list from registered accounts + message senders
+      const accountNames = (accs || [])
+        .map((a: { firstName: string; lastName: string }) =>
+          `${a.firstName} ${a.lastName}`.trim(),
+        )
+        .filter((n: string) => n !== user.firstName && n.trim() !== "");
+      const msgSenders = allMsgs
+        .map((m) => m.sender)
+        .filter((s) => s !== user.firstName);
+      const senders = Array.from(new Set([...accountNames, ...msgSenders]));
       setAllSenders(senders);
       if (selectedContact) {
         // Filter to private chat: messages between currentUser and selectedContact
@@ -3485,7 +3480,7 @@ function YouTubeScreen({ onBack }: { onBack: () => void }) {
         <div className="flex flex-col items-center gap-6 py-8">
           <Youtube className="w-20 h-20 text-red-500" />
           <h2 className="font-display text-2xl font-bold text-gold text-center">
-            Our Heaven by Kids
+            We are friends by Kids
           </h2>
           <a
             href="https://www.youtube.com/@ourHeavenBykids"
@@ -4752,17 +4747,39 @@ function CallingScreen({ onBack }: { onBack: () => void }) {
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
 
-  // Load from backend on mount
+  // Load from backend on mount - merge registered accounts + manual contacts
   useEffect(() => {
     if (!actor) return;
-    (actor as ExtendedBackend)
-      .getContacts()
-      .then((result: string | null) => {
-        if (result) {
+    Promise.all([
+      (actor as ExtendedBackend).getContacts().catch(() => null),
+      (actor as ExtendedBackend).getAllAccounts().catch(() => []),
+    ])
+      .then(([contactsResult, accs]) => {
+        let manualContacts: ContactEntry[] = DEFAULT_CONTACTS;
+        if (contactsResult) {
           try {
-            setContacts(JSON.parse(result));
+            manualContacts = JSON.parse(contactsResult);
           } catch {}
         }
+        const regContacts: ContactEntry[] = (accs || []).map(
+          (
+            a: { firstName: string; lastName: string; phone: string },
+            idx: number,
+          ) => ({
+            id: `reg-${idx}`,
+            name: `${a.firstName} ${a.lastName}`.trim(),
+            phone: a.phone || "",
+          }),
+        );
+        // Merge: registered accounts first, then manual contacts not already in reg list
+        const regPhones = new Set(
+          regContacts.map((c) => c.phone).filter(Boolean),
+        );
+        const regNames = new Set(regContacts.map((c) => c.name.toLowerCase()));
+        const uniqueManual = manualContacts.filter(
+          (c) => !regPhones.has(c.phone) && !regNames.has(c.name.toLowerCase()),
+        );
+        setContacts([...regContacts, ...uniqueManual]);
       })
       .catch(() => {});
   }, [actor]);
@@ -4941,7 +4958,7 @@ function GroupChatScreen({
 
   // Load group media from IndexedDB on mount
   useEffect(() => {
-    const metaKey = "our-heaven-media-msgs-group-meta";
+    const metaKey = "we-are-friends-media-msgs-group-meta";
     try {
       const stored = localStorage.getItem(metaKey);
       if (stored) {
@@ -4968,7 +4985,7 @@ function GroupChatScreen({
   // Persist group media metadata to localStorage
   useEffect(() => {
     try {
-      const metaKey = "our-heaven-media-msgs-group-meta";
+      const metaKey = "we-are-friends-media-msgs-group-meta";
       const limited = localMediaMsgs.slice(-50);
       const meta = limited.map((m) => ({
         ...m,
@@ -6279,7 +6296,7 @@ function NotificationsScreen({
 
 // ─── Root App ──────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = "our-heaven-user";
+const STORAGE_KEY = "we-are-friends-user";
 
 function loadStoredUser(): UserData | null {
   try {
@@ -6375,7 +6392,7 @@ function AppInner() {
               : "You have new messages";
             navigator.serviceWorker.ready
               .then((reg) => {
-                reg.showNotification("Our Heaven — New Message", {
+                reg.showNotification("We are friends — New Message", {
                   body: preview,
                   icon: "/favicon.ico",
                   badge: "/favicon.ico",
