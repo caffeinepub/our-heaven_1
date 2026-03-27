@@ -197,20 +197,47 @@ async function loadAllMembers(
 ): Promise<
   Array<{ firstName: string; lastName: string; phone: string; dob?: string }>
 > {
+  const results: Array<{
+    firstName: string;
+    lastName: string;
+    phone: string;
+    dob?: string;
+  }> = [];
+  const seen = new Set<string>();
+
+  const addUser = (u: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    dob?: string;
+  }) => {
+    if (u.phone && !seen.has(u.phone)) {
+      seen.add(u.phone);
+      results.push(u);
+    }
+  };
+
+  // Source 1: getAllAccounts from backend
   try {
     const accs = await actor.getAllAccounts().catch(() => []);
-    if (accs && accs.length > 0) return accs;
+    if (accs) accs.forEach(addUser);
   } catch {}
+
+  // Source 2: getUsersData JSON blob
   try {
     const data = await (actor as ExtendedBackend)
       .getUsersData()
       .catch(() => null);
     if (data) {
       const parsed = JSON.parse(data);
-      if (parsed && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) parsed.forEach(addUser);
     }
   } catch {}
-  return getLocalUsers();
+
+  // Source 3: localStorage fallback
+  getLocalUsers().forEach(addUser);
+
+  return results;
 }
 
 function useBackendActor(): ExtendedBackend | null {
@@ -3996,6 +4023,7 @@ function AttendanceScreen({
     Array<{ firstName: string; lastName: string; phone: string }>
   >([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Load members and attendance on mount
   useEffect(() => {
@@ -4013,6 +4041,7 @@ function AttendanceScreen({
           } catch {}
         }
       } catch {}
+      setLoading(false);
     }
     load();
   }, [actor]);
@@ -4121,7 +4150,15 @@ function AttendanceScreen({
           </div>
         )}
 
-        {members.length === 0 ? (
+        {loading ? (
+          <div
+            className="card-celestial rounded-2xl p-8 text-center text-gold"
+            data-ocid="attendance.loading_state"
+          >
+            <div className="animate-spin text-2xl mb-2">⟳</div>
+            Loading members…
+          </div>
+        ) : members.length === 0 ? (
           <div
             className="card-celestial rounded-2xl p-8 text-center text-muted-foreground"
             data-ocid="attendance.empty_state"

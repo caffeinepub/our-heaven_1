@@ -1,28 +1,24 @@
-# Our Heaven
+# We are friends
 
 ## Current State
-The app has an AttendanceScreen component that uses hardcoded members (Aaron, Nevveen), does not load registered users, does not filter by date, and does not persist data to the backend. The blank screen issue affects certain users (Don) during app load.
+The Attendance box exists with a date picker and Present/Absent toggle. It uses `loadAllMembers()` which calls `getAllAccounts()` from the backend. The issue is that some registered users are not appearing in the attendance list -- the `getAllAccounts` call may fail or return stale data, and the fallback is localStorage which is device-specific.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `saveAttendance(data: Text)` and `getAttendance()` functions for persistent storage
-- AttendanceScreen: date picker so leaders can mark attendance for a specific date
-- AttendanceScreen: auto-load all registered users from `getAllAccounts()` instead of hardcoded list
-- AttendanceScreen: only leaders (Aaron David, Jojo, Nevveen) can toggle Present/Absent; all members can view
-- AttendanceScreen: persist attendance data to backend via `saveAttendance`
-- Blank screen fix: add error boundary / null guard in app load so users like Don don't see a blank screen
+- On registration, also save user to the `usersData` JSON blob (shared backend storage) so both `getAllAccounts` and `getUsersData` return the full list.
+- In the Attendance screen, show a loading indicator while members are being fetched.
+- Retry logic: if `getAllAccounts` returns empty, wait 1 second and retry once before falling back to `getUsersData`.
 
 ### Modify
-- AttendanceScreen: replace hardcoded members with real registered accounts
-- AttendanceScreen: add date selector at top; show attendance records per date
-- Backend: add attendanceData variable and save/get functions
+- `registerAccount` flow: after successful registration, call `saveUsersData` to append the new user to the shared users JSON blob.
+- `loadAllMembers`: combine results from both `getAllAccounts` and `getUsersData`/localStorage, deduplicate by phone, so no user is ever missed.
+- Attendance screen: always shows all members from the combined/deduped list.
 
 ### Remove
-- Hardcoded member list in AttendanceScreen
-- "Add Member" button (members come from registration now)
+- Nothing removed.
 
 ## Implementation Plan
-1. Add `var attendanceData: ?Text = null` + `saveAttendance`/`getAttendance` to backend main.mo
-2. Rebuild AttendanceScreen: fetch all accounts, show date picker, mark present/absent per date, save/load from backend
-3. Fix blank screen: add try/catch around loadStoredUser() and ensure navigate always resolves to a valid screen
+1. Update the registration handler to also write the new user into the `usersData` JSON blob on the backend.
+2. Update `loadAllMembers` to merge results from `getAllAccounts()` AND `getUsersData()` AND localStorage, deduplicating by phone number.
+3. Update AttendanceScreen to show a loading spinner while members load and display all merged members.
