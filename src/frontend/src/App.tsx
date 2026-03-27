@@ -86,6 +86,8 @@ interface ExtendedBackend extends backendInterface {
   saveSongs(data: string): Promise<void>;
   getAttendance(): Promise<string | null>;
   saveAttendance(data: string): Promise<void>;
+  getUsersData(): Promise<string | null>;
+  saveUsersData(data: string): Promise<void>;
   getAllAccounts(): Promise<
     Array<{
       firstName: string;
@@ -161,6 +163,55 @@ interface UserData {
 // ─── Actor Context ────────────────────────────────────────────────────────────
 
 const ActorContext = createContext<ExtendedBackend | null>(null);
+
+const WAF_USERS_KEY = "waf-registered-users";
+
+function getLocalUsers(): Array<{
+  firstName: string;
+  lastName: string;
+  phone: string;
+  dob: string;
+}> {
+  try {
+    const raw = localStorage.getItem(WAF_USERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+function saveLocalUser(u: {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  dob: string;
+}) {
+  const users = getLocalUsers();
+  if (!users.find((x) => x.phone === u.phone)) {
+    users.push(u);
+    localStorage.setItem(WAF_USERS_KEY, JSON.stringify(users));
+  }
+}
+
+async function loadAllMembers(
+  actor: ExtendedBackend,
+): Promise<
+  Array<{ firstName: string; lastName: string; phone: string; dob?: string }>
+> {
+  try {
+    const accs = await actor.getAllAccounts().catch(() => []);
+    if (accs && accs.length > 0) return accs;
+  } catch {}
+  try {
+    const data = await (actor as ExtendedBackend)
+      .getUsersData()
+      .catch(() => null);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (parsed && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return getLocalUsers();
+}
 
 function useBackendActor(): ExtendedBackend | null {
   return useContext(ActorContext);
@@ -766,6 +817,19 @@ function RegistrationForm({ onNext }: RegistrationFormProps) {
         } catch {
           // Backend may reject new users due to permission rules - continue anyway, data stored locally
         }
+        const userEntry = {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          phone: form.phone,
+          dob: form.dob,
+        };
+        saveLocalUser(userEntry);
+        try {
+          const allUsers = getLocalUsers();
+          await (actor as ExtendedBackend).saveUsersData(
+            JSON.stringify(allUsers),
+          );
+        } catch {}
       }
       onNext(form);
     } catch {
@@ -959,8 +1023,15 @@ interface HomeScreenProps {
 const LEADER_KEYWORDS = ["aaron", "jojo", "nevveen", "neevven"];
 
 function isLeader(firstName: string, lastName?: string): boolean {
-  const combined = `${firstName} ${lastName ?? ""}`.toLowerCase();
-  return LEADER_KEYWORDS.some((kw) => combined.includes(kw));
+  const combined = `${firstName} ${lastName ?? ""}`.toLowerCase().trim();
+  return (
+    combined === "aaron" ||
+    combined === "aaron david" ||
+    combined === "jojo" ||
+    combined === "neevven ps" ||
+    combined === "nevveen ps" ||
+    LEADER_KEYWORDS.some((kw) => combined.startsWith(kw))
+  );
 }
 
 function HomeScreen({
@@ -3932,7 +4003,7 @@ function AttendanceScreen({
       if (!actor) return;
       try {
         const [accs, attData] = await Promise.all([
-          (actor as ExtendedBackend).getAllAccounts(),
+          loadAllMembers(actor as ExtendedBackend),
           (actor as ExtendedBackend).getAttendance(),
         ]);
         setMembers(accs || []);
@@ -4107,7 +4178,11 @@ interface PrayerEntry {
   author: string;
 }
 
-function PrayerScreen({ onBack }: { onBack: () => void }) {
+function PrayerScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const isAdmin = isLeader(user.firstName, user.lastName);
   const DEFAULT_PRAYERS: PrayerEntry[] = [
     {
       id: "1",
@@ -4195,18 +4270,22 @@ function PrayerScreen({ onBack }: { onBack: () => void }) {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <h1 className="font-display text-xl font-bold text-gold">Prayer</h1>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setShowAdd(true)}
-            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
-            data-ocid="prayer.open_modal_button"
-          >
-            <Plus className="w-5 h-5" />
-          </Button>
+          {isAdmin ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShowAdd(true)}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+              data-ocid="prayer.open_modal_button"
+            >
+              <Plus className="w-5 h-5" />
+            </Button>
+          ) : (
+            <div className="w-10 h-10" />
+          )}
         </div>
 
-        {showAdd && (
+        {isAdmin && showAdd && (
           <div className="card-celestial rounded-2xl p-4 mb-4">
             <h3 className="text-gold font-semibold mb-3">Add New Prayer</h3>
             <textarea
@@ -4279,29 +4358,31 @@ function PrayerScreen({ onBack }: { onBack: () => void }) {
                   <p className="text-foreground text-sm leading-relaxed text-center italic mb-4">
                     {p.text}
                   </p>
-                  <div className="flex justify-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditId(p.id);
-                        setEditText(p.text);
-                      }}
-                      className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs"
-                      data-ocid={`prayer.edit_button.${i + 1}`}
-                    >
-                      <Edit2 className="w-3 h-3 mr-1" /> Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deletePrayer(p.id)}
-                      className="border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs"
-                      data-ocid={`prayer.delete_button.${i + 1}`}
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" /> Remove
-                    </Button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditId(p.id);
+                          setEditText(p.text);
+                        }}
+                        className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs"
+                        data-ocid={`prayer.edit_button.${i + 1}`}
+                      >
+                        <Edit2 className="w-3 h-3 mr-1" /> Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deletePrayer(p.id)}
+                        className="border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs"
+                        data-ocid={`prayer.delete_button.${i + 1}`}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" /> Remove
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -4321,7 +4402,11 @@ interface SongEntry {
   youtubeUrl?: string;
 }
 
-function IndianSongsScreen({ onBack }: { onBack: () => void }) {
+function IndianSongsScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const isAdmin = isLeader(user.firstName, user.lastName);
   const DEFAULT_SONGS: SongEntry[] = [
     {
       id: "1",
@@ -4424,18 +4509,22 @@ function IndianSongsScreen({ onBack }: { onBack: () => void }) {
           <h1 className="font-display text-lg font-bold text-gold">
             Indian Songs & Prayers
           </h1>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setShowAdd(true)}
-            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
-            data-ocid="indian.open_modal_button"
-          >
-            <Plus className="w-5 h-5" />
-          </Button>
+          {isAdmin ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShowAdd(true)}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+              data-ocid="indian.open_modal_button"
+            >
+              <Plus className="w-5 h-5" />
+            </Button>
+          ) : (
+            <div className="w-10 h-10" />
+          )}
         </div>
 
-        {showAdd && (
+        {isAdmin && showAdd && (
           <div className="card-celestial rounded-2xl p-4 mb-4">
             <h3 className="text-gold font-semibold mb-3">Add Song / Prayer</h3>
             <div className="flex gap-2 mb-3">
@@ -4563,10 +4652,9 @@ function AllPersonsScreen({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     if (!actor) return;
-    actor
-      .getAllAccounts()
+    loadAllMembers(actor as ExtendedBackend)
       .then((list) => {
-        setAccounts(list);
+        setAccounts(list as any);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -4691,7 +4779,7 @@ function MessagingHubScreen({
         {activeTab === "groups" && (
           <GroupChatScreen user={user} onBack={onBack} />
         )}
-        {activeTab === "calls" && <CallingScreen onBack={onBack} />}
+        {activeTab === "calls" && <CallingScreen user={user} onBack={onBack} />}
       </div>
       {/* Bottom tab bar */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-black/90 border-t border-gold/30 backdrop-blur-md">
@@ -4736,7 +4824,11 @@ function MessagingHubScreen({
   );
 }
 
-function CallingScreen({ onBack }: { onBack: () => void }) {
+function CallingScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const isAdmin = isLeader(user.firstName, user.lastName);
   const DEFAULT_CONTACTS: ContactEntry[] = [
     { id: "1", name: "Aaron David Jojo", phone: "" },
     { id: "2", name: "Nevveen", phone: "" },
@@ -4752,7 +4844,7 @@ function CallingScreen({ onBack }: { onBack: () => void }) {
     if (!actor) return;
     Promise.all([
       (actor as ExtendedBackend).getContacts().catch(() => null),
-      (actor as ExtendedBackend).getAllAccounts().catch(() => []),
+      loadAllMembers(actor as ExtendedBackend).catch(() => []),
     ])
       .then(([contactsResult, accs]) => {
         let manualContacts: ContactEntry[] = DEFAULT_CONTACTS;
@@ -4832,18 +4924,22 @@ function CallingScreen({ onBack }: { onBack: () => void }) {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <h1 className="font-display text-xl font-bold text-gold">Calling</h1>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setShowAdd(true)}
-            className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
-            data-ocid="calling.open_modal_button"
-          >
-            <Plus className="w-5 h-5" />
-          </Button>
+          {isAdmin ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShowAdd(true)}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+              data-ocid="calling.open_modal_button"
+            >
+              <Plus className="w-5 h-5" />
+            </Button>
+          ) : (
+            <div className="w-10 h-10" />
+          )}
         </div>
 
-        {showAdd && (
+        {isAdmin && showAdd && (
           <div className="card-celestial rounded-2xl p-4 mb-4">
             <h3 className="text-gold font-semibold mb-3">Add Contact</h3>
             <Input
@@ -4912,15 +5008,17 @@ function CallingScreen({ onBack }: { onBack: () => void }) {
                     </Button>
                   </a>
                 )}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => deleteContact(c.id)}
-                  className="text-red-400 hover:bg-red-500/10 w-8 h-8 rounded-lg"
-                  data-ocid={`calling.delete_button.${i + 1}`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                {isAdmin && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => deleteContact(c.id)}
+                    className="text-red-400 hover:bg-red-500/10 w-8 h-8 rounded-lg"
+                    data-ocid={`calling.delete_button.${i + 1}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -6829,7 +6927,7 @@ function AppInner() {
               exit={{ opacity: 0, x: 40 }}
               transition={{ duration: 0.3 }}
             >
-              <PrayerScreen onBack={() => navigate("home")} />
+              <PrayerScreen user={userData} onBack={() => navigate("home")} />
             </motion.div>
           )}
           {screen === "indian-songs" && (
@@ -6840,7 +6938,10 @@ function AppInner() {
               exit={{ opacity: 0, x: 40 }}
               transition={{ duration: 0.3 }}
             >
-              <IndianSongsScreen onBack={() => navigate("home")} />
+              <IndianSongsScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
             </motion.div>
           )}
           {screen === "calling" && (
@@ -6851,7 +6952,7 @@ function AppInner() {
               exit={{ opacity: 0, x: 40 }}
               transition={{ duration: 0.3 }}
             >
-              <CallingScreen onBack={() => navigate("home")} />
+              <CallingScreen user={userData} onBack={() => navigate("home")} />
             </motion.div>
           )}
           {screen === "group-chat" && (
@@ -7072,13 +7173,13 @@ const defaultPlayingTimetable: PlayingTimetableState = {
 };
 
 function TimeTableScreen({
-  user: _user,
+  user,
   onBack,
 }: {
   user: { firstName: string; lastName: string } | null;
   onBack: () => void;
 }) {
-  const isAaron = true; // all users can edit timetable
+  const isAaron = isLeader(user?.firstName ?? "", user?.lastName ?? ""); // leaders only
   const { actor } = useActor();
 
   const [activeTab, setActiveTab] = useState<"playing" | "exam">("playing");
