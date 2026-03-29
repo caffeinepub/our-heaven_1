@@ -22,58 +22,58 @@
   :root {
     --radius: 1rem;
 
-    /* Our Heaven — Deep Space Yellow Theme */
-    --background: 0.07 0.01 90;
-    --foreground: 0.97 0.05 85;
+    /* We Are Friends — Deep Space Red/Blue Theme */
+    --background: 0.07 0.01 20;
+    --foreground: 0.97 0.03 250;
 
-    --card: 0.13 0.03 85;
-    --card-foreground: 0.97 0.05 85;
+    --card: 0.13 0.03 20;
+    --card-foreground: 0.97 0.03 250;
 
-    --popover: 0.15 0.03 85;
-    --popover-foreground: 0.97 0.05 85;
+    --popover: 0.15 0.03 20;
+    --popover-foreground: 0.97 0.03 250;
 
-    /* Bright yellow primary */
-    --primary: 0.85 0.2 80;
-    --primary-foreground: 0.08 0.02 85;
+    /* Vibrant red primary */
+    --primary: 0.62 0.22 25;
+    --primary-foreground: 0.98 0.01 0;
 
-    --secondary: 0.16 0.04 80;
-    --secondary-foreground: 0.92 0.05 85;
+    --secondary: 0.16 0.04 250;
+    --secondary-foreground: 0.92 0.05 250;
 
-    --muted: 0.14 0.02 80;
-    --muted-foreground: 0.62 0.06 80;
+    --muted: 0.14 0.02 20;
+    --muted-foreground: 0.62 0.06 250;
 
-    /* Warm amber accent */
-    --accent: 0.78 0.2 65;
-    --accent-foreground: 0.08 0.02 80;
+    /* Electric blue accent */
+    --accent: 0.62 0.2 250;
+    --accent-foreground: 0.08 0.02 250;
 
-    --destructive: 0.65 0.22 22;
+    --destructive: 0.55 0.25 22;
     --destructive-foreground: 0.98 0 0;
 
-    --border: 0.22 0.05 80;
-    --input: 0.18 0.04 80;
-    --ring: 0.8 0.18 80;
+    --border: 0.22 0.05 25;
+    --input: 0.18 0.04 25;
+    --ring: 0.6 0.2 25;
 
-    --chart-1: 0.85 0.2 80;
-    --chart-2: 0.7 0.18 60;
-    --chart-3: 0.75 0.2 100;
-    --chart-4: 0.8 0.22 40;
-    --chart-5: 0.65 0.18 50;
+    --chart-1: 0.62 0.22 25;
+    --chart-2: 0.62 0.2 250;
+    --chart-3: 0.75 0.2 15;
+    --chart-4: 0.55 0.18 240;
+    --chart-5: 0.65 0.18 10;
 
-    --sidebar: 0.1 0.02 85;
-    --sidebar-foreground: 0.92 0.05 85;
-    --sidebar-primary: 0.85 0.2 80;
-    --sidebar-primary-foreground: 0.08 0.02 85;
-    --sidebar-accent: 0.16 0.04 80;
-    --sidebar-accent-foreground: 0.92 0.05 85;
-    --sidebar-border: 0.22 0.05 80;
-    --sidebar-ring: 0.8 0.18 80;
+    --sidebar: 0.1 0.02 20;
+    --sidebar-foreground: 0.92 0.05 250;
+    --sidebar-primary: 0.62 0.22 25;
+    --sidebar-primary-foreground: 0.98 0.01 0;
+    --sidebar-accent: 0.16 0.04 250;
+    --sidebar-accent-foreground: 0.92 0.05 250;
+    --sidebar-border: 0.22 0.05 25;
+    --sidebar-ring: 0.6 0.2 25;
 
-    /* Custom tokens */
-    --gold: 0.85 0.2 80;
-    --gold-dim: 0.68 0.14 78;
-    --deep-space: 0.06 0.01 85;
-    --starlight: 0.97 0.05 85;
-    --nebula: 0.2 0.06 78;
+    /* Custom tokens — keeping --gold name for compatibility */
+    --gold: 0.62 0.22 25;
+    --gold-dim: 0.48 0.15 25;
+    --deep-space: 0.06 0.01 20;
+    --starlight: 0.97 0.03 250;
+    --nebula: 0.2 0.06 250;
   }
 
   * {
@@ -116,55 +116,55 @@
   }
 
   .glow-gold {
-    box-shadow: 0 0 20px oklch(var(--gold) / 0.4), 0 0 40px
-      oklch(var(--gold) / 0.2);
+    box-shadow: 0 0 20px oklch(0.62 0.22 25 / 0.5), 0 0 40px
+      oklch(0.62 0.22 25 / 0.25);
   }
 
   .glow-gold-sm {
-    box-shadow: 0 0 10px oklch(var(--gold) / 0.35);
+    box-shadow: 0 0 10px oklch(0.62 0.22 25 / 0.4);
   }
 
   .text-glow-gold {
-    text-shadow: 0 0 20px oklch(var(--gold) / 0.6), 0 0 40px
-      oklch(var(--gold) / 0.3);
+    text-shadow: 0 0 20px oklch(0.62 0.22 25 / 0.6), 0 0 40px
+      oklch(0.62 0.22 25 / 0.3);
   }
 
   .celestial-bg {
     background: radial-gradient(
         ellipse 120% 60% at 10% 0%,
-        oklch(0.22 0.1 80 / 0.18) 0%,
+        oklch(0.25 0.12 25 / 0.2) 0%,
         transparent 55%
       ),
       radial-gradient(
         ellipse 80% 50% at 90% 10%,
-        oklch(0.28 0.14 65 / 0.14) 0%,
+        oklch(0.28 0.14 250 / 0.18) 0%,
         transparent 50%
       ),
       radial-gradient(
         ellipse 100% 70% at 50% 100%,
-        oklch(0.18 0.08 85 / 0.2) 0%,
+        oklch(0.2 0.1 15 / 0.22) 0%,
         transparent 60%
       ),
       radial-gradient(
         ellipse 60% 40% at 75% 55%,
-        oklch(0.3 0.16 75 / 0.1) 0%,
+        oklch(0.22 0.1 240 / 0.12) 0%,
         transparent 50%
       ),
       linear-gradient(
         160deg,
-        oklch(0.07 0.01 85) 0%,
-        oklch(0.06 0.01 80) 50%,
-        oklch(0.05 0.01 75) 100%
+        oklch(0.07 0.01 20) 0%,
+        oklch(0.06 0.01 240) 50%,
+        oklch(0.05 0.01 20) 100%
       );
   }
 
   .card-celestial {
     background: linear-gradient(
       135deg,
-      oklch(0.14 0.04 82 / 0.88) 0%,
-      oklch(0.11 0.02 80 / 0.94) 100%
+      oklch(0.14 0.04 20 / 0.88) 0%,
+      oklch(0.11 0.02 240 / 0.94) 100%
     );
-    border: 1px solid oklch(var(--gold) / 0.25);
+    border: 1px solid oklch(0.62 0.22 25 / 0.3);
     backdrop-filter: blur(16px);
   }
 }
@@ -258,4 +258,26 @@
 
 .star-twinkle {
   animation: star-twinkle 2s ease-in-out infinite;
+}
+
+@keyframes rocket-fly {
+  0% {
+    transform: translate(0, 0) rotate(-45deg);
+  }
+  25% {
+    transform: translate(-8px, -10px) rotate(-45deg);
+  }
+  50% {
+    transform: translate(-4px, -18px) rotate(-45deg);
+  }
+  75% {
+    transform: translate(-10px, -8px) rotate(-45deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-45deg);
+  }
+}
+
+.animate-rocket {
+  animation: rocket-fly 4s ease-in-out infinite;
 }

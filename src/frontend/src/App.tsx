@@ -211,8 +211,9 @@ async function loadAllMembers(
     phone: string;
     dob?: string;
   }) => {
-    if (u.phone && !seen.has(u.phone)) {
-      seen.add(u.phone);
+    const key = u.phone || `${u.firstName} ${u.lastName}`.trim().toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.add(key);
       results.push(u);
     }
   };
@@ -576,11 +577,10 @@ function StarsBackground() {
         const size = Math.max(0.4, depth * 3);
         const opacity = 0.1 + depth * 0.9;
 
-        // Color: far = blue-white (#e0e8ff), close = gold (#FFD700)
-        // Interpolate between the two
-        const r = Math.round(224 + (255 - 224) * depth); // 224 -> 255
-        const g = Math.round(232 + (215 - 232) * depth); // 232 -> 215
-        const b = Math.round(255 + (0 - 255) * depth); // 255 -> 0
+        // Color: far = blue-white (160,200,255), close = red-orange (255,80,60)
+        const r = Math.round(160 + (255 - 160) * depth); // 160 -> 255
+        const g = Math.round(200 + (80 - 200) * depth); // 200 -> 80
+        const b = Math.round(255 + (60 - 255) * depth); // 255 -> 60
 
         ctx.beginPath();
         ctx.arc(sx, sy, size, 0, Math.PI * 2);
@@ -612,6 +612,63 @@ function StarsBackground() {
       ref={canvasRef}
       className="absolute inset-0 w-full h-full pointer-events-none"
     />
+  );
+}
+
+function SpaceDecorations() {
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
+      {/* Planet 1 - large red planet top right */}
+      <div
+        className="absolute top-6 right-6 w-24 h-24 rounded-full opacity-60"
+        style={{
+          background:
+            "radial-gradient(circle at 35% 35%, oklch(0.75 0.25 25), oklch(0.35 0.18 15))",
+          boxShadow:
+            "0 0 40px oklch(0.6 0.22 25 / 0.5), inset -4px -4px 12px oklch(0.2 0.1 15 / 0.5)",
+        }}
+      />
+      {/* Planet 1 rings */}
+      <div
+        className="absolute top-[46px] right-[8px] w-40 h-6 rounded-full opacity-30"
+        style={{
+          border: "2px solid oklch(0.7 0.2 25)",
+          transform: "rotate(-20deg)",
+        }}
+      />
+      {/* Planet 2 - blue planet bottom left */}
+      <div
+        className="absolute bottom-20 left-4 w-16 h-16 rounded-full opacity-55"
+        style={{
+          background:
+            "radial-gradient(circle at 35% 35%, oklch(0.7 0.22 250), oklch(0.35 0.15 240))",
+          boxShadow:
+            "0 0 30px oklch(0.6 0.2 250 / 0.5), inset -3px -3px 10px oklch(0.2 0.1 240 / 0.5)",
+        }}
+      />
+      {/* Planet 3 - small purple planet mid-left */}
+      <div
+        className="absolute top-1/3 left-3 w-10 h-10 rounded-full opacity-45"
+        style={{
+          background:
+            "radial-gradient(circle at 35% 35%, oklch(0.65 0.25 300), oklch(0.3 0.18 290))",
+          boxShadow: "0 0 20px oklch(0.55 0.22 300 / 0.4)",
+        }}
+      />
+      {/* Rocket - animated flying across */}
+      <div
+        className="absolute text-4xl opacity-70 animate-rocket"
+        style={{ top: "18%", right: "12%" }}
+      >
+        🚀
+      </div>
+      {/* Ring planet (Saturn-style) */}
+      <div className="absolute bottom-1/3 right-3 text-3xl opacity-50">🪐</div>
+      {/* Small stars decoration */}
+      <div className="absolute top-1/4 left-1/4 text-sm opacity-40">✨</div>
+      <div className="absolute top-2/3 right-1/4 text-xs opacity-35">⭐</div>
+      <div className="absolute top-1/2 left-1/3 text-xs opacity-30">✦</div>
+    </div>
   );
 }
 
@@ -4019,9 +4076,18 @@ function AttendanceScreen({
   const [attendance, setAttendance] = useState<
     Record<string, Record<string, "Present" | "Absent">>
   >({});
-  const [members, setMembers] = useState<
-    Array<{ firstName: string; lastName: string; phone: string }>
-  >([]);
+  const DEFAULT_MEMBERS = [
+    { firstName: "Aaron", lastName: "David Jojo", phone: "" },
+    { firstName: "Neevven", lastName: "ps", phone: "" },
+    { firstName: "Nevveen", lastName: "ps", phone: "" },
+    { firstName: "Jojo", lastName: "", phone: "" },
+    { firstName: "Srida", lastName: "", phone: "" },
+    { firstName: "Afira", lastName: "", phone: "" },
+  ];
+  const [members, setMembers] =
+    useState<Array<{ firstName: string; lastName: string; phone: string }>>(
+      DEFAULT_MEMBERS,
+    );
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -4034,13 +4100,27 @@ function AttendanceScreen({
           loadAllMembers(actor as ExtendedBackend),
           (actor as ExtendedBackend).getAttendance(),
         ]);
-        setMembers(accs || []);
+        // Merge registered accounts with default members (like Calling box)
+        const regMembers = accs || [];
+        const regNames = new Set(
+          regMembers.map((m: { firstName: string; lastName: string }) =>
+            `${m.firstName} ${m.lastName}`.trim().toLowerCase(),
+          ),
+        );
+        const uniqueDefaults = DEFAULT_MEMBERS.filter(
+          (d) =>
+            !regNames.has(`${d.firstName} ${d.lastName}`.trim().toLowerCase()),
+        );
+        const merged = [...regMembers, ...uniqueDefaults];
+        setMembers(merged.length > 0 ? merged : DEFAULT_MEMBERS);
         if (attData) {
           try {
             setAttendance(JSON.parse(attData));
           } catch {}
         }
-      } catch {}
+      } catch {
+        setMembers(DEFAULT_MEMBERS);
+      }
       setLoading(false);
     }
     load();
@@ -6672,6 +6752,7 @@ function AppInner() {
   return (
     <ActorContext.Provider value={actor as ExtendedBackend | null}>
       <div className="min-h-screen bg-background text-foreground font-sans">
+        <SpaceDecorations />
         <Toaster richColors position="top-center" />
         <MusicPlayer />
 
