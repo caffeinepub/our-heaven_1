@@ -4076,11 +4076,11 @@ function AttendanceScreen({
   const [attendance, setAttendance] = useState<
     Record<string, Record<string, "Present" | "Absent">>
   >({});
+  // Test accounts excluded from attendance: Nevveen ps, Jojo
+  const EXCLUDED_FROM_ATTENDANCE = ["nevveen ps", "jojo"];
   const DEFAULT_MEMBERS = [
     { firstName: "Aaron", lastName: "David Jojo", phone: "" },
     { firstName: "Neevven", lastName: "ps", phone: "" },
-    { firstName: "Nevveen", lastName: "ps", phone: "" },
-    { firstName: "Jojo", lastName: "", phone: "" },
     { firstName: "Srida", lastName: "", phone: "" },
     { firstName: "Afira", lastName: "", phone: "" },
   ];
@@ -4111,7 +4111,12 @@ function AttendanceScreen({
           (d) =>
             !regNames.has(`${d.firstName} ${d.lastName}`.trim().toLowerCase()),
         );
-        const merged = [...regMembers, ...uniqueDefaults];
+        const merged = [...regMembers, ...uniqueDefaults].filter(
+          (m) =>
+            !EXCLUDED_FROM_ATTENDANCE.includes(
+              `${m.firstName} ${m.lastName}`.trim().toLowerCase(),
+            ),
+        );
         setMembers(merged.length > 0 ? merged : DEFAULT_MEMBERS);
         if (attData) {
           try {
@@ -4771,7 +4776,11 @@ function AllPersonsScreen({ onBack }: { onBack: () => void }) {
     if (!actor) return;
     loadAllMembers(actor as ExtendedBackend)
       .then((list) => {
-        setAccounts(list as any);
+        const filtered = (list as any[]).filter(
+          (a: { firstName: string; lastName: string }) =>
+            `${a.firstName} ${a.lastName}`.trim().toLowerCase() !== "jojo",
+        );
+        setAccounts(filtered);
         setLoading(false);
       })
       .catch(() => setLoading(false));
