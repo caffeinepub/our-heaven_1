@@ -6542,7 +6542,25 @@ function saveUser(u: UserData) {
   }
 }
 
-const APP_VERSION = "2026-03-17-v1";
+const APP_VERSION = "2026-03-30-v1";
+
+// Account reset: when ACCOUNT_RESET_VERSION changes, all stored accounts are wiped
+const ACCOUNT_RESET_VERSION = "reset-2026-03-30";
+const ACCOUNT_RESET_KEY = "waf-account-reset-version";
+(function performAccountReset() {
+  try {
+    const applied = localStorage.getItem(ACCOUNT_RESET_KEY);
+    if (applied !== ACCOUNT_RESET_VERSION) {
+      // Clear all account data
+      localStorage.removeItem("we-are-friends-user");
+      localStorage.removeItem("waf-registered-users");
+      // Mark reset as applied
+      localStorage.setItem(ACCOUNT_RESET_KEY, ACCOUNT_RESET_VERSION);
+    }
+  } catch {
+    /* ignore */
+  }
+})();
 
 function AppInner() {
   const { actor } = useActor();
