@@ -71,7 +71,7 @@ actor {
   // Storage
   let accounts = Map.empty<Text, Account>();
   let otps = Map.empty<Text, OTP>();
-  let messages = List.empty<Message>();
+  var messages = List.empty<Message>();
   let stars = Map.empty<Text, StarOfTheMonth>();
   let birthdays = Map.empty<Text, Birthday>();
   let meetLinks = Map.empty<Text, MeetLink>();
@@ -406,7 +406,7 @@ actor {
   public query func getUsersData() : async ?Text { usersData };
 
   // Reset key for forcing all users to re-register
-  var resetKey : Text = "reset-20260331-v2";
+  var resetKey : Text = "reset-20260331-v3";
 
   public query func getResetKey() : async Text { resetKey };
 
@@ -415,6 +415,8 @@ actor {
     for (phone in accounts.keys()) {
       accounts.remove(phone);
     };
+    // Clear all messages
+    messages := List.empty<Message>();
     // Clear all persistent data blobs
     timetableData := null;
     contactsData := null;

@@ -1,28 +1,27 @@
 # We are friends
 
 ## Current State
-The app has a splash screen, Srida-specific greeting, and a full account system stored in backend Maps and localStorage. Accounts persist across sessions. The backend has no reset mechanism.
+The app has a two-part reset system:
+1. Frontend `ACCOUNT_RESET_VERSION` constant -- when changed, clears localStorage user/account data
+2. Backend `resetKey` variable -- when changed, triggers `clearAllData()` which wipes accounts, contacts, attendance, prayers, songs, rules, quiz, timetable, and usersData from the backend
+
+However, the backend `messages` list is NOT currently cleared by `clearAllData()`. Messages are stored as `let messages = List.empty<Message>()` (immutable binding). Private chat metadata is stored in localStorage.
+
+All Persons box and Attendance box pull from registered accounts + `usersData` JSON blob.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `getResetKey()` backend query returning hardcoded `"reset-20260331-v2"` to trigger a forced re-registration for all users
-- `clearAllData()` backend function that wipes all accounts, timetable, contacts, prayers, songs, rules, quiz, and attendance data
-- `MahavirGreetingScreen` component showing `/assets/mahavir-jayanti.jpg` fullscreen for 2 seconds, shown to ALL users after splash (before home/welcome/srida-greeting)
-- `"mahavir-greeting"` screen type
-- Frontend startup reset check: compare localStorage `waf_resetKey` with backend `getResetKey()`; if mismatch, call `clearAllData()`, wipe all localStorage keys, show registration
+- Nothing new
 
 ### Modify
-- Splash `onComplete` handler: after checking user, navigate to `"mahavir-greeting"` instead of directly to home/welcome/srida-greeting; store intended next screen in a ref
-- Screen type union: add `"mahavir-greeting"`
+- `backend/main.mo`: Change `let messages` to `var messages` so it can be reassigned; update `clearAllData()` to also reset `messages := List.empty<Message>()`; update `resetKey` value to `"reset-20260331-v3"` to trigger the reset
+- `frontend/src/App.tsx`: Update `ACCOUNT_RESET_VERSION` to `"reset-2026-03-31"` and `APP_VERSION` to `"2026-03-31-v1"` to force localStorage wipe on all devices
 
 ### Remove
-- Nothing removed
+- All existing accounts, registered user names, messages, attendance records, contacts, prayers, songs, rules, quiz data, timetable data
 
 ## Implementation Plan
-1. Add `getResetKey` and `clearAllData` to `src/backend/main.mo`
-2. Add corresponding signatures to `src/frontend/src/backend.d.ts`
-3. In AppInner: add `mahavirNextRef` to store where to go after greeting; add reset check on mount that calls backend `getResetKey`, compares with localStorage, clears everything if mismatch
-4. Modify splash `onComplete` to navigate to `"mahavir-greeting"` always (for all users), storing the real destination
-5. Add `MahavirGreetingScreen` component: fullscreen image with 2-second auto-dismiss
-6. Add `screen === "mahavir-greeting"` renderer in main JSX
+1. Edit `main.mo`: change `let messages` to `var messages`, update `clearAllData()` to also do `messages := List.empty<Message>()`, change `resetKey` to `"reset-20260331-v3"`
+2. Edit `App.tsx`: update `ACCOUNT_RESET_VERSION` to `"reset-2026-03-31"` and `APP_VERSION` to `"2026-03-31-v1"`
+3. When any user opens the app, the new reset key triggers the full wipe and redirects to the registration screen

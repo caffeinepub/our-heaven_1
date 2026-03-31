@@ -6543,10 +6543,10 @@ function saveUser(u: UserData) {
   }
 }
 
-const APP_VERSION = "2026-03-30-v1";
+const APP_VERSION = "2026-03-31-v1";
 
 // Account reset: when ACCOUNT_RESET_VERSION changes, all stored accounts are wiped
-const ACCOUNT_RESET_VERSION = "reset-2026-03-30";
+const ACCOUNT_RESET_VERSION = "reset-2026-03-31";
 const ACCOUNT_RESET_KEY = "waf-account-reset-version";
 (function performAccountReset() {
   try {
