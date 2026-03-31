@@ -142,7 +142,8 @@ type Screen =
   | "settings"
   | "timetable"
   | "luttapi"
-  | "srida-greeting";
+  | "srida-greeting"
+  | "mahavir-greeting";
 
 interface NotificationItem {
   id: string;
@@ -6581,6 +6582,7 @@ function AppInner() {
   const lastSeenCountRef = useRef(0);
   const hasViewedMessagesRef = useRef(false);
   const notifPermGranted = useRef(false);
+  const mahavirNextRef = useRef<Screen>("home");
 
   // Notifications state
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -6604,6 +6606,42 @@ function AppInner() {
       notifPermGranted.current = true;
     }
   }, [userData.firstName]);
+
+  // Account reset: check backend reset key and wipe all local data if changed
+  useEffect(() => {
+    if (!actor) return;
+    (async () => {
+      try {
+        const resetKey = await (actor as any).getResetKey();
+        const stored = localStorage.getItem("waf_resetKey");
+        if (stored !== resetKey) {
+          await (actor as any).clearAllData();
+          const keysToRemove = [
+            "waf_user",
+            "waf_registered",
+            "waf_messages",
+            "waf_contacts",
+            "waf_prayers",
+            "waf_songs",
+            "waf_rules",
+            "waf_quiz",
+            "waf_timetable",
+            "waf_attendance",
+            "waf_notifications",
+            "waf_resetKey",
+          ];
+          for (const k of keysToRemove) {
+            localStorage.removeItem(k);
+          }
+          localStorage.clear();
+          localStorage.setItem("waf_resetKey", resetKey);
+          setScreen("welcome");
+        }
+      } catch {
+        /* ignore errors silently */
+      }
+    })();
+  }, [actor]);
 
   // Poll for new messages to show badge on Messages box
   useEffect(() => {
@@ -6795,29 +6833,31 @@ function AppInner() {
                 onComplete={() => {
                   try {
                     const stored = loadStoredUser();
+                    let dest: Screen = "welcome";
                     if (
-                      !stored ||
-                      typeof stored !== "object" ||
-                      !stored.firstName
+                      stored &&
+                      typeof stored === "object" &&
+                      stored.firstName
                     ) {
-                      navigate("welcome");
-                      return;
+                      const fullName = `${stored.firstName} ${stored.lastName}`
+                        .trim()
+                        .toLowerCase();
+                      const first = stored.firstName.trim().toLowerCase();
+                      if (
+                        first === "srida" ||
+                        fullName === "srida s" ||
+                        fullName === "srida"
+                      ) {
+                        dest = "srida-greeting";
+                      } else {
+                        dest = "home";
+                      }
                     }
-                    const fullName = `${stored.firstName} ${stored.lastName}`
-                      .trim()
-                      .toLowerCase();
-                    const first = stored.firstName.trim().toLowerCase();
-                    if (
-                      first === "srida" ||
-                      fullName === "srida s" ||
-                      fullName === "srida"
-                    ) {
-                      navigate("srida-greeting");
-                    } else {
-                      navigate("home");
-                    }
+                    mahavirNextRef.current = dest;
+                    navigate("mahavir-greeting");
                   } catch {
-                    navigate("welcome");
+                    mahavirNextRef.current = "welcome";
+                    navigate("mahavir-greeting");
                   }
                 }}
               />
@@ -7194,6 +7234,19 @@ function AppInner() {
               <SridaGreetingScreen onComplete={() => navigate("home")} />
             </motion.div>
           )}
+          {screen === "mahavir-greeting" && (
+            <motion.div
+              key="mahavir-greeting"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <MahavirGreetingScreen
+                onComplete={() => navigate(mahavirNextRef.current)}
+              />
+            </motion.div>
+          )}
           {screen === "messaging-hub" && (
             <motion.div
               key="messaging-hub"
@@ -7261,6 +7314,7 @@ function AppInner() {
         "splash",
         "welcome",
         "srida-greeting",
+        "mahavir-greeting",
         "register",
         "account-ready",
         "luttapi",
@@ -8134,6 +8188,37 @@ function SridaGreetingScreen({ onComplete }: { onComplete: () => void }) {
       <p style={{ color: "rgba(255,255,255,0.6)", marginTop: "8px" }}>
         Hi Srida! 👋
       </p>
+    </div>
+  );
+}
+
+function MahavirGreetingScreen({ onComplete }: { onComplete: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onComplete, 2000);
+    return () => clearTimeout(t);
+  }, [onComplete]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "#000",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+    >
+      <img
+        src="/assets/mahavir-jayanti.jpg"
+        alt="Happy Mahavir Jayanti"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+        }}
+      />
     </div>
   );
 }

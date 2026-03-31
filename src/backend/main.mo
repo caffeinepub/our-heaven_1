@@ -404,4 +404,25 @@ actor {
   public query func getQuiz() : async ?Text { quizData };
   public shared func saveUsersData(data : Text) : async () { usersData := ?data; };
   public query func getUsersData() : async ?Text { usersData };
+
+  // Reset key for forcing all users to re-register
+  var resetKey : Text = "reset-20260331-v2";
+
+  public query func getResetKey() : async Text { resetKey };
+
+  public shared func clearAllData() : async () {
+    // Clear all accounts
+    for (phone in accounts.keys()) {
+      accounts.remove(phone);
+    };
+    // Clear all persistent data blobs
+    timetableData := null;
+    contactsData := null;
+    prayersData := null;
+    songsData := null;
+    rulesData := null;
+    quizData := null;
+    attendanceData := null;
+    usersData := null;
+  };
 };

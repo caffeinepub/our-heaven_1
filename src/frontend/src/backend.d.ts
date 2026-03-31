@@ -101,4 +101,6 @@ export interface backendInterface {
     saveQuiz(data: string): Promise<void>;
     getSongs(): Promise<string | null>;
     saveSongs(data: string): Promise<void>;
+    getResetKey(): Promise<string>;
+    clearAllData(): Promise<void>;
 }

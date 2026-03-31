@@ -1,24 +1,28 @@
 # We are friends
 
 ## Current State
-The Attendance box exists with a date picker and Present/Absent toggle. It uses `loadAllMembers()` which calls `getAllAccounts()` from the backend. The issue is that some registered users are not appearing in the attendance list -- the `getAllAccounts` call may fail or return stale data, and the fallback is localStorage which is device-specific.
+The app has a splash screen, Srida-specific greeting, and a full account system stored in backend Maps and localStorage. Accounts persist across sessions. The backend has no reset mechanism.
 
 ## Requested Changes (Diff)
 
 ### Add
-- On registration, also save user to the `usersData` JSON blob (shared backend storage) so both `getAllAccounts` and `getUsersData` return the full list.
-- In the Attendance screen, show a loading indicator while members are being fetched.
-- Retry logic: if `getAllAccounts` returns empty, wait 1 second and retry once before falling back to `getUsersData`.
+- `getResetKey()` backend query returning hardcoded `"reset-20260331-v2"` to trigger a forced re-registration for all users
+- `clearAllData()` backend function that wipes all accounts, timetable, contacts, prayers, songs, rules, quiz, and attendance data
+- `MahavirGreetingScreen` component showing `/assets/mahavir-jayanti.jpg` fullscreen for 2 seconds, shown to ALL users after splash (before home/welcome/srida-greeting)
+- `"mahavir-greeting"` screen type
+- Frontend startup reset check: compare localStorage `waf_resetKey` with backend `getResetKey()`; if mismatch, call `clearAllData()`, wipe all localStorage keys, show registration
 
 ### Modify
-- `registerAccount` flow: after successful registration, call `saveUsersData` to append the new user to the shared users JSON blob.
-- `loadAllMembers`: combine results from both `getAllAccounts` and `getUsersData`/localStorage, deduplicate by phone, so no user is ever missed.
-- Attendance screen: always shows all members from the combined/deduped list.
+- Splash `onComplete` handler: after checking user, navigate to `"mahavir-greeting"` instead of directly to home/welcome/srida-greeting; store intended next screen in a ref
+- Screen type union: add `"mahavir-greeting"`
 
 ### Remove
-- Nothing removed.
+- Nothing removed
 
 ## Implementation Plan
-1. Update the registration handler to also write the new user into the `usersData` JSON blob on the backend.
-2. Update `loadAllMembers` to merge results from `getAllAccounts()` AND `getUsersData()` AND localStorage, deduplicating by phone number.
-3. Update AttendanceScreen to show a loading spinner while members load and display all merged members.
+1. Add `getResetKey` and `clearAllData` to `src/backend/main.mo`
+2. Add corresponding signatures to `src/frontend/src/backend.d.ts`
+3. In AppInner: add `mahavirNextRef` to store where to go after greeting; add reset check on mount that calls backend `getResetKey`, compares with localStorage, clears everything if mismatch
+4. Modify splash `onComplete` to navigate to `"mahavir-greeting"` always (for all users), storing the real destination
+5. Add `MahavirGreetingScreen` component: fullscreen image with 2-second auto-dismiss
+6. Add `screen === "mahavir-greeting"` renderer in main JSX
