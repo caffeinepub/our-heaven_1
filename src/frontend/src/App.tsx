@@ -6633,9 +6633,17 @@ function AppInner() {
           for (const k of keysToRemove) {
             localStorage.removeItem(k);
           }
+          // Preserve user login session -- only wipe shared/app data, not personal registration
+          const savedUser = localStorage.getItem("we-are-friends-user");
           localStorage.clear();
           localStorage.setItem("waf_resetKey", resetKey);
-          setScreen("welcome");
+          if (savedUser) {
+            localStorage.setItem("we-are-friends-user", savedUser);
+          }
+          // Only go to welcome if user is not already registered
+          if (!savedUser) {
+            setScreen("welcome");
+          }
         }
       } catch {
         /* ignore errors silently */
