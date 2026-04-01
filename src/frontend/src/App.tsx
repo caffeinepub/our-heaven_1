@@ -8211,8 +8211,8 @@ function MahavirGreetingScreen({ onComplete }: { onComplete: () => void }) {
       }}
     >
       <img
-        src="/assets/mahavir-jayanti.jpg"
-        alt="Happy Mahavir Jayanti"
+        src="/assets/april-fools.jpg"
+        alt="Happy April Fool's Day"
         style={{
           width: "100%",
           height: "100%",
