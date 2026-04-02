@@ -8219,8 +8219,8 @@ function MahavirGreetingScreen({ onComplete }: { onComplete: () => void }) {
       }}
     >
       <img
-        src="/assets/april-fools.jpg"
-        alt="Happy April Fool's Day"
+        src="/assets/pesaha.jpg"
+        alt="Pesaha Perunal"
         style={{
           width: "100%",
           height: "100%",
