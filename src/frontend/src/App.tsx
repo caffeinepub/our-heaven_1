@@ -19,11 +19,13 @@ import {
 } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
+import { useActor } from "@caffeineai/core-infrastructure";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   Bell,
+  BookMarked,
   BookOpen,
   Bot,
   Cake,
@@ -46,6 +48,7 @@ import {
   MicOff,
   Music,
   Music2,
+  Palette,
   Pencil,
   Phone,
   Plus,
@@ -70,7 +73,9 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { createActor } from "./backend";
 import type { backendInterface } from "./backend.d.ts";
+import { loadAllMediaByPrefix, loadMedia, saveMedia } from "./mediaDB";
 
 // Extended interface with additional persistence methods
 interface ExtendedBackend extends backendInterface {
@@ -88,6 +93,10 @@ interface ExtendedBackend extends backendInterface {
   saveAttendance(data: string): Promise<void>;
   getUsersData(): Promise<string | null>;
   saveUsersData(data: string): Promise<void>;
+  getLearningActivities(): Promise<string | null>;
+  saveLearningActivities(data: string): Promise<void>;
+  getTimetable(): Promise<string | null>;
+  saveTimetable(data: string): Promise<void>;
   getAllAccounts(): Promise<
     Array<{
       firstName: string;
@@ -97,18 +106,78 @@ interface ExtendedBackend extends backendInterface {
       password: string;
     }>
   >;
+  registerAccount(
+    firstName: string,
+    lastName: string,
+    dob: string,
+    phone: string,
+    password: string,
+  ): Promise<void>;
+  updateAccount(
+    phone: string,
+    firstName: string,
+    lastName: string,
+    dob: string,
+    password: string,
+  ): Promise<void>;
+  getAllMessages(): Promise<
+    Array<{ sender: string; content: string; timestamp: bigint }>
+  >;
+  sendMessage(sender: string, content: string): Promise<void>;
+  getAllStars(): Promise<
+    Array<{ month: string; name: string; position: string }>
+  >;
+  addOrUpdateStar(month: string, name: string, position: string): Promise<void>;
+  deleteStar(month: string): Promise<void>;
+  getAllBirthdays(): Promise<Array<{ name: string; date: string }>>;
+  addOrUpdateBirthday(name: string, date: string): Promise<void>;
+  deleteBirthday(name: string): Promise<void>;
+  getAllMeetLinks(): Promise<Array<{ title: string; url: string }>>;
+  addOrUpdateMeetLink(title: string, url: string): Promise<void>;
+  deleteMeetLink(title: string): Promise<void>;
+  getAllImportantMessages(): Promise<
+    Array<{ id: bigint; content: string; author: string; dismissed: boolean }>
+  >;
+  dismissImportantMessage(id: bigint): Promise<void>;
+  addImportantMessage(content: string, author: string): Promise<void>;
+  updateImportantMessage(
+    id: bigint,
+    content: string,
+    author?: string,
+  ): Promise<void>;
 }
-import type {
-  Birthday,
-  ImportantMessage,
-  MeetLink,
-  Message,
-  StarOfTheMonth,
-} from "./backend.d.ts";
-import { useActor } from "./hooks/useActor";
-import { loadAllMediaByPrefix, loadMedia, saveMedia } from "./mediaDB";
+
+function useExtendedActor(): ExtendedBackend | null {
+  const { actor } = useActor(createActor);
+  return actor as unknown as ExtendedBackend | null;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Birthday {
+  name: string;
+  date: string;
+}
+interface MeetLink {
+  title: string;
+  url: string;
+}
+interface StarOfTheMonth {
+  month: string;
+  name: string;
+  position: string;
+}
+interface Message {
+  sender: string;
+  content: string;
+  timestamp: bigint;
+}
+interface ImportantMessage {
+  id: bigint;
+  content: string;
+  author: string;
+  dismissed: boolean;
+}
 
 type Screen =
   | "splash"
@@ -142,7 +211,11 @@ type Screen =
   | "settings"
   | "timetable"
   | "luttapi"
-  | "srida-greeting";
+  | "srida-greeting"
+  | "learning-activities"
+  | "math-games"
+  | "vocab-games"
+  | "coloring-activities";
 
 interface NotificationItem {
   id: string;
@@ -1331,6 +1404,12 @@ function HomeScreen({
                   screen: "attendance",
                   icon: ClipboardList,
                   label: "Attendance & Level",
+                  badge: 0,
+                },
+                {
+                  screen: "learning-activities",
+                  icon: BookMarked,
+                  label: "Learning",
                   badge: 0,
                 },
               ],
@@ -3824,7 +3903,7 @@ function RulesScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
     "DO NOT MAKE FUN OF OTHERS IF THEY ARE IN ANY PROBLEM",
     "IF SOMEONE NEED NOTES OR INFO SEND THEM THE ANSWER",
   ];
-  const { actor } = useActor();
+  const actor = useExtendedActor();
   const [rulesPhoto, setRulesPhoto] = useState<string | null>(null);
   const rulesPhotoInputRef = useRef<HTMLInputElement>(null);
   const [rules, setRules] = useState<string[]>(DEFAULT_RULES);
@@ -4317,7 +4396,7 @@ function PrayerScreen({
       author: "Everyone",
     },
   ];
-  const { actor } = useActor();
+  const actor = useExtendedActor();
   const [prayers, setPrayers] = useState<PrayerEntry[]>(DEFAULT_PRAYERS);
   const [showAdd, setShowAdd] = useState(false);
   const [newPrayer, setNewPrayer] = useState("");
@@ -4554,7 +4633,7 @@ function IndianSongsScreen({
         "https://www.youtube.com/results?search_query=raghupati+raghav+bhajan",
     },
   ];
-  const { actor } = useActor();
+  const actor = useExtendedActor();
   const [items, setItems] = useState<SongEntry[]>(DEFAULT_SONGS);
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -4959,7 +5038,7 @@ function CallingScreen({
     { id: "1", name: "Aaron David Jojo", phone: "" },
     { id: "2", name: "Nevveen", phone: "" },
   ];
-  const { actor } = useActor();
+  const actor = useExtendedActor();
   const [contacts, setContacts] = useState<ContactEntry[]>(DEFAULT_CONTACTS);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -5582,9 +5661,1065 @@ interface QuizQuestion {
   marks: number;
 }
 
+// ─── Shared Learning Data Types ──────────────────────────────────────────────
+
+interface MathActivity {
+  id: string;
+  title: string;
+  question: string;
+  answer: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+}
+
+interface VocabActivity {
+  id: string;
+  word: string;
+  definition: string;
+  example: string;
+}
+
+interface ColoringTemplate {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  color: string;
+}
+
+interface LearningActivity {
+  id: string;
+  tab: "Writing" | "Reading" | "Science";
+  title: string;
+  content: string;
+}
+
+interface LearningData {
+  math: MathActivity[];
+  vocab: VocabActivity[];
+  coloring: ColoringTemplate[];
+  learning: LearningActivity[];
+}
+
+const DEFAULT_LEARNING_DATA: LearningData = {
+  math: [
+    {
+      id: "m1",
+      title: "Addition Challenge",
+      question: "What is 47 + 56?",
+      answer: "103",
+      difficulty: "Easy",
+    },
+    {
+      id: "m2",
+      title: "Multiplication Fun",
+      question: "What is 8 × 7?",
+      answer: "56",
+      difficulty: "Medium",
+    },
+    {
+      id: "m3",
+      title: "Division Puzzle",
+      question: "What is 144 ÷ 12?",
+      answer: "12",
+      difficulty: "Hard",
+    },
+  ],
+  vocab: [
+    {
+      id: "v1",
+      word: "Curious",
+      definition: "Eager to know or learn something",
+      example: "She was curious about how birds fly.",
+    },
+    {
+      id: "v2",
+      word: "Magnificent",
+      definition: "Impressively beautiful or elaborate",
+      example: "The sunset was magnificent.",
+    },
+    {
+      id: "v3",
+      word: "Persevere",
+      definition: "To continue despite difficulties",
+      example: "He persevered and finished the race.",
+    },
+  ],
+  coloring: [
+    {
+      id: "c1",
+      title: "Butterfly Garden",
+      description: "Color a beautiful butterfly with flowers",
+      completed: false,
+      color: "#ec4899",
+    },
+    {
+      id: "c2",
+      title: "Space Adventure",
+      description: "Color rockets, planets and stars",
+      completed: false,
+      color: "#6366f1",
+    },
+    {
+      id: "c3",
+      title: "Ocean Friends",
+      description: "Color fish, turtles and seahorses",
+      completed: false,
+      color: "#06b6d4",
+    },
+  ],
+  learning: [
+    {
+      id: "l1",
+      tab: "Writing",
+      title: "My Favourite Day",
+      content:
+        "Write about the most memorable day in your life. Include details about what happened, who was there, and how you felt.",
+    },
+    {
+      id: "l2",
+      tab: "Reading",
+      title: "The Little Seed",
+      content:
+        "Once upon a time, a tiny seed was planted in the earth. With water, sunlight and care, it grew into a magnificent tree that gave shade to everyone. The tree never forgot its humble beginning as a small seed.",
+    },
+    {
+      id: "l3",
+      tab: "Science",
+      title: "How Plants Grow",
+      content:
+        "Plants need four things to grow: sunlight, water, soil and air. Seeds contain everything needed to start a plant. When you plant a seed and water it, it sprouts and grows towards the light. This process is called germination.",
+    },
+  ],
+};
+
+function useLearningData(actor: ExtendedBackend | null) {
+  const [data, setData] = useState<LearningData>(DEFAULT_LEARNING_DATA);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!actor) {
+      setLoading(false);
+      return;
+    }
+    actor
+      .getLearningActivities()
+      .catch(() => null)
+      .then((raw) => {
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as Partial<LearningData>;
+            setData({
+              math: parsed.math ?? DEFAULT_LEARNING_DATA.math,
+              vocab: parsed.vocab ?? DEFAULT_LEARNING_DATA.vocab,
+              coloring: parsed.coloring ?? DEFAULT_LEARNING_DATA.coloring,
+              learning: parsed.learning ?? DEFAULT_LEARNING_DATA.learning,
+            });
+          } catch {}
+        }
+        setLoading(false);
+      });
+  }, [actor]);
+
+  const save = async (updated: LearningData) => {
+    setData(updated);
+    if (actor) {
+      try {
+        await actor.saveLearningActivities(JSON.stringify(updated));
+      } catch {}
+    }
+  };
+
+  return { data, loading, save };
+}
+
+// ─── Math Games Screen ─────────────────────────────────────────────────────────
+function MathGamesScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const actor = useBackendActor();
+  const { data, loading, save } = useLearningData(actor);
+  const isAdmin = isLeader(user.firstName, user.lastName);
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    question: "",
+    answer: "",
+    difficulty: "Easy" as MathActivity["difficulty"],
+  });
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+
+  const handleAdd = () => {
+    if (!form.title.trim() || !form.question.trim() || !form.answer.trim())
+      return;
+    const updated: LearningData = {
+      ...data,
+      math: [...data.math, { id: Date.now().toString(), ...form }],
+    };
+    save(updated);
+    setForm({ title: "", question: "", answer: "", difficulty: "Easy" });
+    setAddOpen(false);
+    toast.success("Math activity added!");
+  };
+
+  const handleDelete = (id: string) => {
+    save({ ...data, math: data.math.filter((m) => m.id !== id) });
+    toast.success("Deleted");
+  };
+
+  const diffColor: Record<string, string> = {
+    Easy: "bg-green-500/20 text-green-300 border-green-500/30",
+    Medium: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+    Hard: "bg-red-500/20 text-red-300 border-red-500/30",
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">
+            ➕ Math Games
+          </h1>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setAddOpen(true)}
+                className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+                data-ocid="math_games.add_button"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : data.math.length === 0 ? (
+          <div className="text-center py-16" data-ocid="math_games.empty_state">
+            <span className="text-5xl">➕</span>
+            <p className="text-muted-foreground mt-4">No math activities yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {data.math.map((m, i) => (
+              <motion.div
+                key={m.id}
+                className="card-celestial rounded-2xl p-5"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                data-ocid={`math_games.item.${i + 1}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display font-semibold text-foreground">
+                      {m.title}
+                    </p>
+                    <span
+                      className={`inline-block text-xs px-2 py-0.5 rounded-full border mt-1 ${diffColor[m.difficulty]}`}
+                    >
+                      {m.difficulty}
+                    </span>
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDelete(m.id)}
+                      className="w-7 h-7 text-destructive hover:bg-destructive/10 rounded-lg flex-shrink-0"
+                      data-ocid={`math_games.delete.${i + 1}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-foreground text-sm mb-3">❓ {m.question}</p>
+                {revealed[m.id] ? (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl px-4 py-2 text-green-300 text-sm font-semibold">
+                    ✅ Answer: {m.answer}
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => setRevealed((p) => ({ ...p, [m.id]: true }))}
+                    className="bg-gold/20 border border-gold/40 text-gold hover:bg-gold/30 rounded-xl text-xs"
+                    data-ocid={`math_games.reveal.${i + 1}`}
+                  >
+                    Reveal Answer
+                  </Button>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Math Activity
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Title</Label>
+              <Input
+                value={form.title}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, title: e.target.value }))
+                }
+                placeholder="e.g. Addition Challenge"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">Question</Label>
+              <Input
+                value={form.question}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, question: e.target.value }))
+                }
+                placeholder="e.g. What is 5 + 3?"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">Answer</Label>
+              <Input
+                value={form.answer}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, answer: e.target.value }))
+                }
+                placeholder="e.g. 8"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                Difficulty
+              </Label>
+              <select
+                value={form.difficulty}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    difficulty: e.target.value as MathActivity["difficulty"],
+                  }))
+                }
+                className="w-full mt-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-gold"
+              >
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Vocabulary Games Screen ───────────────────────────────────────────────────
+function VocabGamesScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const actor = useBackendActor();
+  const { data, loading, save } = useLearningData(actor);
+  const isAdmin = isLeader(user.firstName, user.lastName);
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({ word: "", definition: "", example: "" });
+  const [flipped, setFlipped] = useState<Record<string, boolean>>({});
+
+  const handleAdd = () => {
+    if (!form.word.trim() || !form.definition.trim()) return;
+    const updated: LearningData = {
+      ...data,
+      vocab: [...data.vocab, { id: Date.now().toString(), ...form }],
+    };
+    save(updated);
+    setForm({ word: "", definition: "", example: "" });
+    setAddOpen(false);
+    toast.success("Vocabulary word added!");
+  };
+
+  const handleDelete = (id: string) => {
+    save({ ...data, vocab: data.vocab.filter((v) => v.id !== id) });
+    toast.success("Deleted");
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">
+            📖 Vocabulary
+          </h1>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setAddOpen(true)}
+                className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+                data-ocid="vocab_games.add_button"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : data.vocab.length === 0 ? (
+          <div
+            className="text-center py-16"
+            data-ocid="vocab_games.empty_state"
+          >
+            <span className="text-5xl">📖</span>
+            <p className="text-muted-foreground mt-4">
+              No vocabulary words yet
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {data.vocab.map((v, i) => (
+              <motion.div
+                key={v.id}
+                className={`rounded-2xl p-5 cursor-pointer transition-all border ${flipped[v.id] ? "card-celestial border-gold/40" : "bg-gold/10 border-gold/30"}`}
+                onClick={() => setFlipped((p) => ({ ...p, [v.id]: !p[v.id] }))}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                data-ocid={`vocab_games.item.${i + 1}`}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display font-bold text-gold text-lg">
+                      {v.word}
+                    </p>
+                    {flipped[v.id] ? (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-foreground text-sm">
+                          {v.definition}
+                        </p>
+                        {v.example && (
+                          <p className="text-muted-foreground text-xs italic">
+                            "{v.example}"
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-xs mt-1">
+                        Tap to reveal meaning
+                      </p>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(v.id);
+                      }}
+                      className="w-7 h-7 text-destructive hover:bg-destructive/10 rounded-lg flex-shrink-0"
+                      data-ocid={`vocab_games.delete.${i + 1}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Vocabulary Word
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Word</Label>
+              <Input
+                value={form.word}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, word: e.target.value }))
+                }
+                placeholder="e.g. Persevere"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                Definition
+              </Label>
+              <textarea
+                value={form.definition}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, definition: e.target.value }))
+                }
+                placeholder="What does it mean?"
+                rows={3}
+                className="w-full mt-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-gold resize-none"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                Example (optional)
+              </Label>
+              <Input
+                value={form.example}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, example: e.target.value }))
+                }
+                placeholder="Use it in a sentence"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Coloring Activities Screen ────────────────────────────────────────────────
+const PALETTE_COLORS = [
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+  "#06b6d4",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#ffffff",
+  "#94a3b8",
+];
+
+function ColoringActivitiesScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const actor = useBackendActor();
+  const { data, loading, save } = useLearningData(actor);
+  const isAdmin = isLeader(user.firstName, user.lastName);
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    color: "#ec4899",
+  });
+
+  const handleAdd = () => {
+    if (!form.title.trim()) return;
+    const updated: LearningData = {
+      ...data,
+      coloring: [
+        ...data.coloring,
+        { id: Date.now().toString(), completed: false, ...form },
+      ],
+    };
+    save(updated);
+    setForm({ title: "", description: "", color: "#ec4899" });
+    setAddOpen(false);
+    toast.success("Coloring template added!");
+  };
+
+  const handleDelete = (id: string) => {
+    save({ ...data, coloring: data.coloring.filter((c) => c.id !== id) });
+    toast.success("Deleted");
+  };
+
+  const toggleComplete = (id: string) => {
+    const updated: LearningData = {
+      ...data,
+      coloring: data.coloring.map((c) =>
+        c.id === id ? { ...c, completed: !c.completed } : c,
+      ),
+    };
+    save(updated);
+  };
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">
+            🎨 Coloring
+          </h1>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setAddOpen(true)}
+                className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+                data-ocid="coloring.add_button"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : data.coloring.length === 0 ? (
+          <div className="text-center py-16" data-ocid="coloring.empty_state">
+            <Palette className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No coloring templates yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {data.coloring.map((c, i) => (
+              <motion.div
+                key={c.id}
+                className="card-celestial rounded-2xl p-5"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                data-ocid={`coloring.item.${i + 1}`}
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center text-3xl border-2"
+                    style={{
+                      backgroundColor: `${c.color}22`,
+                      borderColor: c.color,
+                    }}
+                  >
+                    🎨
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-display font-semibold text-foreground">
+                        {c.title}
+                      </p>
+                      {isAdmin && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDelete(c.id)}
+                          className="w-7 h-7 text-destructive hover:bg-destructive/10 rounded-lg flex-shrink-0"
+                          data-ocid={`coloring.delete.${i + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                    {c.description && (
+                      <p className="text-muted-foreground text-xs mt-1">
+                        {c.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-3 mt-3">
+                      <div className="flex gap-1 flex-wrap">
+                        {PALETTE_COLORS.slice(0, 6).map((col) => (
+                          <div
+                            key={col}
+                            className="w-5 h-5 rounded-full border border-white/20 cursor-pointer hover:scale-110 transition-transform"
+                            style={{ backgroundColor: col }}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleComplete(c.id)}
+                        className={`ml-auto text-xs px-3 py-1 rounded-xl border font-semibold transition-all ${c.completed ? "bg-green-500/20 text-green-300 border-green-500/30" : "bg-gold/10 text-gold border-gold/30 hover:bg-gold/20"}`}
+                        data-ocid={`coloring.complete.${i + 1}`}
+                      >
+                        {c.completed ? "✓ Done" : "Mark Done"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add Coloring Template
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Title</Label>
+              <Input
+                value={form.title}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, title: e.target.value }))
+                }
+                placeholder="e.g. Butterfly Garden"
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                Description
+              </Label>
+              <Input
+                value={form.description}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, description: e.target.value }))
+                }
+                placeholder="What to color..."
+                className="bg-input border-border mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                Accent Color
+              </Label>
+              <div className="flex gap-2 flex-wrap mt-1">
+                {PALETTE_COLORS.map((col) => (
+                  <button
+                    key={col}
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, color: col }))}
+                    className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${form.color === col ? "border-gold scale-110" : "border-transparent"}`}
+                    style={{ backgroundColor: col }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Learning Activities Screen ────────────────────────────────────────────────
+function LearningActivitiesScreen({
+  user,
+  onBack,
+}: { user: UserData; onBack: () => void }) {
+  const actor = useBackendActor();
+  const { data, loading, save } = useLearningData(actor);
+  const isAdmin = isLeader(user.firstName, user.lastName);
+  const [activeTab, setActiveTab] =
+    useState<LearningActivity["tab"]>("Writing");
+  const [addOpen, setAddOpen] = useState(false);
+  const [viewItem, setViewItem] = useState<LearningActivity | null>(null);
+  const [form, setForm] = useState({ title: "", content: "" });
+
+  const filtered = data.learning.filter((l) => l.tab === activeTab);
+
+  const handleAdd = () => {
+    if (!form.title.trim() || !form.content.trim()) return;
+    const updated: LearningData = {
+      ...data,
+      learning: [
+        ...data.learning,
+        { id: Date.now().toString(), tab: activeTab, ...form },
+      ],
+    };
+    save(updated);
+    setForm({ title: "", content: "" });
+    setAddOpen(false);
+    toast.success(`${activeTab} activity added!`);
+  };
+
+  const handleDelete = (id: string) => {
+    save({ ...data, learning: data.learning.filter((l) => l.id !== id) });
+    toast.success("Deleted");
+  };
+
+  const tabEmoji: Record<LearningActivity["tab"], string> = {
+    Writing: "✍️",
+    Reading: "📚",
+    Science: "🔬",
+  };
+
+  if (viewItem) {
+    return (
+      <div className="relative min-h-screen celestial-bg overflow-y-auto">
+        <StarsBackground />
+        <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+          <div className="flex items-center justify-between mb-6 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+            <h1 className="font-display text-xl font-bold text-gold truncate flex-1 mr-3">
+              {viewItem.title}
+            </h1>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setViewItem(null)}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10 flex-shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="card-celestial rounded-2xl p-6">
+            <span className="text-2xl">{tabEmoji[viewItem.tab]}</span>
+            <p className="text-foreground leading-relaxed mt-4 whitespace-pre-wrap">
+              {viewItem.content}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <div className="flex items-center justify-between mb-4 sticky top-0 z-20 celestial-bg py-4 border-b border-border">
+          <h1 className="font-display text-xl font-bold text-gold">
+            📗 Learning
+          </h1>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setAddOpen(true)}
+                className="border border-gold/30 text-gold hover:bg-gold/10 rounded-xl text-xs h-9"
+                data-ocid="learning.add_button"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBack}
+              className="rounded-xl border border-gold/30 text-gold hover:bg-gold/10 w-10 h-10"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Tab buttons */}
+        <div className="flex gap-2 mb-5" data-ocid="learning.tabs">
+          {(["Writing", "Reading", "Science"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border ${activeTab === tab ? "bg-gold text-deep-space border-gold" : "bg-card border-border text-muted-foreground hover:border-gold/50"}`}
+              data-ocid={`learning.tab.${tab.toLowerCase()}`}
+            >
+              {tabEmoji[tab]} {tab}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-gold animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16" data-ocid="learning.empty_state">
+            <span className="text-5xl">{tabEmoji[activeTab]}</span>
+            <p className="text-muted-foreground mt-4">
+              No {activeTab.toLowerCase()} activities yet
+            </p>
+            {isAdmin && (
+              <p className="text-muted-foreground text-xs mt-1">
+                Tap + Add to create one
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((item, i) => (
+              <motion.div
+                key={item.id}
+                className="card-celestial rounded-2xl px-4 py-4 flex items-start gap-3 cursor-pointer hover:border-gold/50 transition-all"
+                onClick={() => setViewItem(item)}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                whileTap={{ scale: 0.98 }}
+                data-ocid={`learning.item.${i + 1}`}
+              >
+                <span className="text-2xl flex-shrink-0">
+                  {tabEmoji[item.tab]}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display font-semibold text-foreground">
+                    {item.title}
+                  </p>
+                  <p className="text-muted-foreground text-xs mt-0.5 line-clamp-2">
+                    {item.content}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(item.id);
+                    }}
+                    className="w-7 h-7 text-destructive hover:bg-destructive/10 rounded-lg flex-shrink-0"
+                    data-ocid={`learning.delete.${i + 1}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-gold">
+              Add {activeTab} Activity
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-muted-foreground text-sm">Title</Label>
+              <Input
+                value={form.title}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, title: e.target.value }))
+                }
+                placeholder="Activity title..."
+                className="bg-input border-border mt-1"
+                data-ocid="learning.title.input"
+              />
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-sm">
+                {activeTab === "Writing"
+                  ? "Writing Prompt"
+                  : activeTab === "Reading"
+                    ? "Story / Passage"
+                    : "Concept / Experiment"}
+              </Label>
+              <textarea
+                value={form.content}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, content: e.target.value }))
+                }
+                placeholder="Enter content here..."
+                rows={5}
+                className="w-full mt-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-gold resize-none"
+                data-ocid="learning.content.textarea"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              className="bg-gold text-deep-space hover:bg-accent"
+              data-ocid="learning.submit_button"
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Games Screen ─────────────────────────────────────────────────────────────
 
-type GameId = "sos" | "tictactoe" | "memory" | "puzzle" | null;
+type GameId =
+  | "sos"
+  | "tictactoe"
+  | "memory"
+  | "puzzle"
+  | "math"
+  | "vocab"
+  | "coloring"
+  | null;
 
 function SOSGame({ onBack }: { onBack: () => void }) {
   const SIZE = 5;
@@ -6002,7 +7137,7 @@ function PuzzleGame({ onBack }: { onBack: () => void }) {
   );
 }
 
-function GamesScreen({ onBack }: { onBack: () => void }) {
+function GamesScreen({ onBack, user }: { onBack: () => void; user: UserData }) {
   const [activeGame, setActiveGame] = useState<GameId>(null);
 
   if (activeGame === "sos")
@@ -6013,6 +7148,17 @@ function GamesScreen({ onBack }: { onBack: () => void }) {
     return <MemoryGame onBack={() => setActiveGame(null)} />;
   if (activeGame === "puzzle")
     return <PuzzleGame onBack={() => setActiveGame(null)} />;
+  if (activeGame === "math")
+    return <MathGamesScreen user={user} onBack={() => setActiveGame(null)} />;
+  if (activeGame === "vocab")
+    return <VocabGamesScreen user={user} onBack={() => setActiveGame(null)} />;
+  if (activeGame === "coloring")
+    return (
+      <ColoringActivitiesScreen
+        user={user}
+        onBack={() => setActiveGame(null)}
+      />
+    );
 
   const games = [
     {
@@ -6043,29 +7189,54 @@ function GamesScreen({ onBack }: { onBack: () => void }) {
       desc: "Slide to sort 1-15",
       color: "from-orange-500/20 to-orange-900/20 border-orange-500/30",
     },
+    {
+      id: "math" as GameId,
+      emoji: "➕",
+      name: "Math Games",
+      desc: "Fun math challenges",
+      color: "from-yellow-500/20 to-yellow-900/20 border-yellow-500/30",
+    },
+    {
+      id: "vocab" as GameId,
+      emoji: "📖",
+      name: "Vocabulary",
+      desc: "Word activities",
+      color: "from-pink-500/20 to-pink-900/20 border-pink-500/30",
+    },
+    {
+      id: "coloring" as GameId,
+      emoji: "🎨",
+      name: "Coloring",
+      desc: "Coloring activities",
+      color: "from-teal-500/20 to-teal-900/20 border-teal-500/30",
+    },
   ];
 
   return (
-    <div className="p-4">
-      <SubPageHeader title="Games" onBack={onBack} />
-      <p className="text-center text-foreground/60 text-sm mb-6">
-        Choose a game to play!
-      </p>
-      <div className="grid grid-cols-2 gap-4">
-        {games.map((g) => (
-          <button
-            type="button"
-            key={g.id}
-            onClick={() => setActiveGame(g.id)}
-            className={`rounded-2xl border bg-gradient-to-br p-5 flex flex-col items-center gap-2 hover:scale-105 transition-transform active:scale-95 ${g.color}`}
-          >
-            <span className="text-4xl">{g.emoji}</span>
-            <span className="font-bold text-gold text-sm">{g.name}</span>
-            <span className="text-foreground/60 text-xs text-center">
-              {g.desc}
-            </span>
-          </button>
-        ))}
+    <div className="relative min-h-screen celestial-bg overflow-y-auto">
+      <StarsBackground />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-4 pb-16">
+        <SubPageHeader title="Games" onBack={onBack} />
+        <p className="text-center text-foreground/60 text-sm mb-6">
+          Choose a game to play!
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          {games.map((g) => (
+            <button
+              type="button"
+              key={g.id}
+              onClick={() => setActiveGame(g.id)}
+              className={`rounded-2xl border bg-gradient-to-br p-5 flex flex-col items-center gap-2 hover:scale-105 transition-transform active:scale-95 ${g.color}`}
+              data-ocid={`games.${g.id}.button`}
+            >
+              <span className="text-4xl">{g.emoji}</span>
+              <span className="font-bold text-gold text-sm">{g.name}</span>
+              <span className="text-foreground/60 text-xs text-center">
+                {g.desc}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -6073,7 +7244,7 @@ function GamesScreen({ onBack }: { onBack: () => void }) {
 
 function QuizScreen({ user, onBack }: { user: UserData; onBack: () => void }) {
   const isAdmin = isLeader(user.firstName, user.lastName);
-  const { actor } = useActor();
+  const actor = useExtendedActor();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -6563,7 +7734,7 @@ const ACCOUNT_RESET_KEY = "waf-account-reset-version";
 })();
 
 function AppInner() {
-  const { actor } = useActor();
+  const actor = useExtendedActor();
 
   const [screen, setScreen] = useState<Screen>("splash");
   const [userData, setUserData] = useState<UserData>(() => {
@@ -7090,7 +8261,7 @@ function AppInner() {
               exit={{ opacity: 0, x: 40 }}
               transition={{ duration: 0.3 }}
             >
-              <GamesScreen onBack={() => navigate("home")} />
+              <GamesScreen user={userData} onBack={() => navigate("home")} />
             </motion.div>
           )}
           {screen === "attendance" && (
@@ -7256,6 +8427,62 @@ function AppInner() {
               />
             </motion.div>
           )}
+          {screen === "learning-activities" && (
+            <motion.div
+              key="learning-activities"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <LearningActivitiesScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "math-games" && (
+            <motion.div
+              key="math-games"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <MathGamesScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "vocab-games" && (
+            <motion.div
+              key="vocab-games"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <VocabGamesScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
+          {screen === "coloring-activities" && (
+            <motion.div
+              key="coloring-activities"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ColoringActivitiesScreen
+                user={userData}
+                onBack={() => navigate("home")}
+              />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
@@ -7368,7 +8595,7 @@ function TimeTableScreen({
   onBack: () => void;
 }) {
   const isAaron = isLeader(user?.firstName ?? "", user?.lastName ?? ""); // leaders only
-  const { actor } = useActor();
+  const actor = useExtendedActor();
 
   const [activeTab, setActiveTab] = useState<"playing" | "exam">("playing");
   const [loadingFromBackend, setLoadingFromBackend] = useState(true);

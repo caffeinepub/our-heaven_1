@@ -1,0 +1,105 @@
+// Version: 1.0.0
+type Account__928440765 =
+  {
+    dob : Text;
+    firstName : Text;
+    lastName : Text;
+    password : Text;
+    phone : Text
+  };
+type Birthday__278520178 = {date : Text; name : Text};
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type ExternalBlob__140892883 = Blob;
+type ImportantMessage__737116346 =
+  {author : Text; content : Text; dismissed : Bool; id : Nat};
+type Int__270357528 = Int__616954475;
+type Int__616954475 = Int;
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type Map__158565046<K, V> = Map__297112838<K, V>;
+type Map__297112838<K, V> =
+  {var root : Node__46230540<K, V>; var size : Nat__490723111};
+type Map__605269027<K, V> = Map__158565046<K, V>;
+type MeetLink__901213181 = {title : Text; url : Text};
+type Message__19119041 =
+  {content : Text; sender : Text; timestamp : Time__900049286};
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type OTP__493094072 = {code : Nat; expiresAt : Time__900049286};
+type Photo__390676457 = ExternalBlob__140892883;
+type StarOfTheMonth__1024029119 =
+  {month : Text; name : Text; position : Text};
+type Time__796480547 = Int__270357528;
+type Time__900049286 = Time__796480547;
+type UserProfile__491224006 =
+  {firstName : Text; lastName : Text; phone : Text};
+type UserRole__521596351 = {#admin; #guest; #user};
+actor {
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__521596351>
+    };
+  stable accounts :
+    {
+      var root : Node__46230540<Text, Account__928440765>;
+      var size : Nat__490723111
+    };
+  stable var attendanceData : ?Text;
+  stable birthdays :
+    {
+      var root : Node__46230540<Text, Birthday__278520178>;
+      var size : Nat__490723111
+    };
+  stable var contactsData : ?Text;
+  stable importantMessages :
+    {
+      var root : Node__46230540<Nat, ImportantMessage__737116346>;
+      var size : Nat__490723111
+    };
+  stable var learningActivitiesData : ?Text;
+  stable meetLinks :
+    {
+      var root : Node__46230540<Text, MeetLink__901213181>;
+      var size : Nat__490723111
+    };
+  stable var messages :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?Message__19119041]];
+      var elementIndex : Nat__490723111
+    };
+  stable var nextImportantMessageId : Nat;
+  stable var nextPhotoId : Nat;
+  stable otps :
+    {
+      var root : Node__46230540<Text, OTP__493094072>;
+      var size : Nat__490723111
+    };
+  stable photos :
+    {
+      var root : Node__46230540<Nat, Photo__390676457>;
+      var size : Nat__490723111
+    };
+  stable var prayersData : ?Text;
+  stable var quizData : ?Text;
+  stable var resetKey : Text;
+  stable var rulesData : ?Text;
+  stable var songsData : ?Text;
+  stable stars :
+    {
+      var root : Node__46230540<Text, StarOfTheMonth__1024029119>;
+      var size : Nat__490723111
+    };
+  stable var timetableData : ?Text;
+  stable userProfiles :
+    {
+      var root : Node__46230540<Principal, UserProfile__491224006>;
+      var size : Nat__490723111
+    };
+  stable var usersData : ?Text
+};

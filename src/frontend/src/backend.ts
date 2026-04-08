@@ -156,6 +156,7 @@ export interface backendInterface {
     addOrUpdateMeetLink(title: string, url: string): Promise<void>;
     addOrUpdateStar(month: string, name: string, position: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    clearAllData(): Promise<void>;
     deleteBirthday(name: string): Promise<void>;
     deleteMeetLink(title: string): Promise<void>;
     deletePhoto(id: bigint): Promise<void>;
@@ -170,15 +171,32 @@ export interface backendInterface {
     getAllMessages(): Promise<Array<Message>>;
     getAllPhotos(): Promise<Array<[bigint, Photo]>>;
     getAllStars(): Promise<Array<StarOfTheMonth>>;
+    getAttendance(): Promise<string | null>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getContacts(): Promise<string | null>;
+    getLearningActivities(): Promise<string | null>;
     getPhoto(id: bigint): Promise<Photo | null>;
+    getPrayers(): Promise<string | null>;
+    getQuiz(): Promise<string | null>;
+    getResetKey(): Promise<string>;
+    getRules(): Promise<string | null>;
+    getSongs(): Promise<string | null>;
     getTimetable(): Promise<string | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getUsersData(): Promise<string | null>;
     isCallerAdmin(): Promise<boolean>;
     registerAccount(firstName: string, lastName: string, dob: string, phone: string, password: string): Promise<void>;
+    saveAttendance(data: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveContacts(data: string): Promise<void>;
+    saveLearningActivities(data: string): Promise<void>;
+    savePrayers(data: string): Promise<void>;
+    saveQuiz(data: string): Promise<void>;
+    saveRules(data: string): Promise<void>;
+    saveSongs(data: string): Promise<void>;
     saveTimetable(data: string): Promise<void>;
+    saveUsersData(data: string): Promise<void>;
     sendMessage(sender: string, content: string): Promise<void>;
     updateAccount(phone: string, firstName: string, lastName: string, dob: string, password: string): Promise<void>;
     updateImportantMessage(id: bigint, content: string, author: string): Promise<void>;
@@ -353,6 +371,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n8(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async clearAllData(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.clearAllData();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.clearAllData();
             return result;
         }
     }
@@ -552,73 +584,199 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getAttendance(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAttendance();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAttendance();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async getCallerUserProfile(): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserProfile();
-                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n11(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserProfile();
-            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n11(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserRole(): Promise<UserRole> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n11(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n12(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n11(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n12(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getPhoto(arg0: bigint): Promise<Photo | null> {
+    async getContacts(): Promise<string | null> {
         if (this.processError) {
             try {
-                const result = await this.actor.getPhoto(arg0);
-                return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getPhoto(arg0);
-            return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async getTimetable(): Promise<string | null> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getTimetable();
-                return from_candid_opt_n14(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getTimetable();
-            return from_candid_opt_n14(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getUserProfile(arg0);
+                const result = await this.actor.getContacts();
                 return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
+            const result = await this.actor.getContacts();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getLearningActivities(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getLearningActivities();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getLearningActivities();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getPhoto(arg0: bigint): Promise<Photo | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPhoto(arg0);
+                return from_candid_opt_n14(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPhoto(arg0);
+            return from_candid_opt_n14(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getPrayers(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPrayers();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPrayers();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getQuiz(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getQuiz();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getQuiz();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getResetKey(): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getResetKey();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getResetKey();
+            return result;
+        }
+    }
+    async getRules(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getRules();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getRules();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getSongs(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSongs();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSongs();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getTimetable(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getTimetable();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getTimetable();
+            return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUserProfile(arg0);
+                return from_candid_opt_n11(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
             const result = await this.actor.getUserProfile(arg0);
+            return from_candid_opt_n11(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getUsersData(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUsersData();
+                return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUsersData();
             return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
         }
     }
@@ -650,6 +808,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async saveAttendance(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveAttendance(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveAttendance(arg0);
+            return result;
+        }
+    }
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
         if (this.processError) {
             try {
@@ -664,6 +836,90 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async saveContacts(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveContacts(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveContacts(arg0);
+            return result;
+        }
+    }
+    async saveLearningActivities(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveLearningActivities(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveLearningActivities(arg0);
+            return result;
+        }
+    }
+    async savePrayers(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.savePrayers(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.savePrayers(arg0);
+            return result;
+        }
+    }
+    async saveQuiz(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveQuiz(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveQuiz(arg0);
+            return result;
+        }
+    }
+    async saveRules(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveRules(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveRules(arg0);
+            return result;
+        }
+    }
+    async saveSongs(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveSongs(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveSongs(arg0);
+            return result;
+        }
+    }
     async saveTimetable(arg0: string): Promise<void> {
         if (this.processError) {
             try {
@@ -675,6 +931,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.saveTimetable(arg0);
+            return result;
+        }
+    }
+    async saveUsersData(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveUsersData(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveUsersData(arg0);
             return result;
         }
     }
@@ -748,91 +1018,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getContacts(): Promise<string | null> {
-        const result = await (this.actor as any).getContacts();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveContacts(data: string): Promise<void> {
-        await (this.actor as any).saveContacts(data);
-    }
-    async getPrayers(): Promise<string | null> {
-        const result = await (this.actor as any).getPrayers();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async savePrayers(data: string): Promise<void> {
-        await (this.actor as any).savePrayers(data);
-    }
-    async getRules(): Promise<string | null> {
-        const result = await (this.actor as any).getRules();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveRules(data: string): Promise<void> {
-        await (this.actor as any).saveRules(data);
-    }
-    async getQuiz(): Promise<string | null> {
-        const result = await (this.actor as any).getQuiz();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveQuiz(data: string): Promise<void> {
-        await (this.actor as any).saveQuiz(data);
-    }
-    async getSongs(): Promise<string | null> {
-        const result = await (this.actor as any).getSongs();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveSongs(data: string): Promise<void> {
-        await (this.actor as any).saveSongs(data);
-    }
-    async getContacts(): Promise<string | null> {
-        const result = await (this.actor as any).getContacts();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveContacts(data: string): Promise<void> {
-        await (this.actor as any).saveContacts(data);
-    }
-    async getPrayers(): Promise<string | null> {
-        const result = await (this.actor as any).getPrayers();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async savePrayers(data: string): Promise<void> {
-        await (this.actor as any).savePrayers(data);
-    }
-    async getRules(): Promise<string | null> {
-        const result = await (this.actor as any).getRules();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveRules(data: string): Promise<void> {
-        await (this.actor as any).saveRules(data);
-    }
-    async getQuiz(): Promise<string | null> {
-        const result = await (this.actor as any).getQuiz();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveQuiz(data: string): Promise<void> {
-        await (this.actor as any).saveQuiz(data);
-    }
-    async getSongs(): Promise<string | null> {
-        const result = await (this.actor as any).getSongs();
-        return Array.isArray(result) ? (result.length === 0 ? null : result[0]) : (result ?? null);
-    }
-    async saveSongs(data: string): Promise<void> {
-        await (this.actor as any).saveSongs(data);
-    }
 }
-
-function from_candid_UserRole_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n12(_uploadFile, _downloadFile, value);
+function from_candid_UserRole_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n13(_uploadFile, _downloadFile, value);
 }
 function from_candid__CaffeineStorageRefillResult_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: __CaffeineStorageRefillResult): _CaffeineStorageRefillResult {
     return from_candid_record_n5(_uploadFile, _downloadFile, value);
 }
-function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Photo]): Photo | null {
+function from_candid_opt_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
+function from_candid_opt_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Photo]): Photo | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [boolean]): boolean | null {
@@ -853,7 +1052,7 @@ function from_candid_record_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint
         topped_up_amount: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.topped_up_amount))
     };
 }
-function from_candid_variant_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;

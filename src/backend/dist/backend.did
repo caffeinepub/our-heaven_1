@@ -1,0 +1,131 @@
+type _CaffeineStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _CaffeineStorageRefillInformation = record {
+                                           proposed_top_up_amount: opt nat;};
+type _CaffeineStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = 
+ record {
+   firstName: text;
+   lastName: text;
+   phone: text;
+ };
+type Time = int;
+type StarOfTheMonth = 
+ record {
+   month: text;
+   name: text;
+   position: text;
+ };
+type Photo = blob;
+type Message = 
+ record {
+   content: text;
+   sender: text;
+   timestamp: Time;
+ };
+type MeetLink = 
+ record {
+   title: text;
+   url: text;
+ };
+type ImportantMessage = 
+ record {
+   author: text;
+   content: text;
+   dismissed: bool;
+   id: nat;
+ };
+type ExternalBlob = blob;
+type Birthday = 
+ record {
+   date: text;
+   name: text;
+ };
+type Account = 
+ record {
+   dob: text;
+   firstName: text;
+   lastName: text;
+   password: text;
+   phone: text;
+ };
+service : {
+  _caffeineStorageBlobIsLive: (hash: blob) -> (bool) query;
+  _caffeineStorageBlobsToDelete: () -> (vec blob) query;
+  _caffeineStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _caffeineStorageCreateCertificate: (blobHash: text) ->
+   (_CaffeineStorageCreateCertificateResult);
+  _caffeineStorageRefillCashier: (refillInformation:
+   opt _CaffeineStorageRefillInformation) -> (_CaffeineStorageRefillResult);
+  _caffeineStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControlWithSecret: (userSecret: text) -> ();
+  addImportantMessage: (content: text, author: text) -> ();
+  addOrUpdateBirthday: (name: text, date: text) -> ();
+  addOrUpdateMeetLink: (title: text, url: text) -> ();
+  addOrUpdateStar: (month: text, name: text, position: text) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  clearAllData: () -> ();
+  deleteBirthday: (name: text) -> ();
+  deleteMeetLink: (title: text) -> ();
+  deletePhoto: (id: nat) -> ();
+  deleteStar: (month: text) -> ();
+  dismissImportantMessage: (id: nat) -> ();
+  generateOTP: (phone: text) -> (nat);
+  getAccount: (phone: text) -> (Account) query;
+  getAllAccounts: () -> (vec Account) query;
+  getAllBirthdays: () -> (vec Birthday) query;
+  getAllImportantMessages: () -> (vec ImportantMessage) query;
+  getAllMeetLinks: () -> (vec MeetLink) query;
+  getAllMessages: () -> (vec Message) query;
+  getAllPhotos: () -> (vec record {
+                             nat;
+                             Photo;
+                           }) query;
+  getAllStars: () -> (vec StarOfTheMonth) query;
+  getAttendance: () -> (opt text) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getContacts: () -> (opt text) query;
+  getLearningActivities: () -> (opt text) query;
+  getPhoto: (id: nat) -> (opt Photo) query;
+  getPrayers: () -> (opt text) query;
+  getQuiz: () -> (opt text) query;
+  getResetKey: () -> (text) query;
+  getRules: () -> (opt text) query;
+  getSongs: () -> (opt text) query;
+  getTimetable: () -> (opt text) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  getUsersData: () -> (opt text) query;
+  isCallerAdmin: () -> (bool) query;
+  registerAccount: (firstName: text, lastName: text, dob: text, phone: 
+   text, password: text) -> ();
+  saveAttendance: (data: text) -> ();
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  saveContacts: (data: text) -> ();
+  saveLearningActivities: (data: text) -> ();
+  savePrayers: (data: text) -> ();
+  saveQuiz: (data: text) -> ();
+  saveRules: (data: text) -> ();
+  saveSongs: (data: text) -> ();
+  saveTimetable: (data: text) -> ();
+  saveUsersData: (data: text) -> ();
+  sendMessage: (sender: text, content: text) -> ();
+  updateAccount: (phone: text, firstName: text, lastName: text, dob: 
+   text, password: text) -> ();
+  updateImportantMessage: (id: nat, content: text, author: text) -> ();
+  uploadPhoto: ("blob": ExternalBlob) -> (nat);
+  verifyOTP: (phone: text, code: nat) -> (bool);
+}

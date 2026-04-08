@@ -89,6 +89,7 @@ actor {
   var quizData : ?Text = null;
   var attendanceData : ?Text = null;
   var usersData : ?Text = null;
+  var learningActivitiesData : ?Text = null;
 
 
   let accessControlState = AccessControl.initState();
@@ -405,6 +406,10 @@ actor {
   public shared func saveUsersData(data : Text) : async () { usersData := ?data; };
   public query func getUsersData() : async ?Text { usersData };
 
+  // Learning Activities (Writing, Reading, Science, Math, Vocabulary, Coloring)
+  public shared func saveLearningActivities(data : Text) : async () { learningActivitiesData := ?data; };
+  public query func getLearningActivities() : async ?Text { learningActivitiesData };
+
   // Reset key for forcing all users to re-register
   var resetKey : Text = "reset-20260331-v3";
 
@@ -426,5 +431,6 @@ actor {
     quizData := null;
     attendanceData := null;
     usersData := null;
+    learningActivitiesData := null;
   };
 };

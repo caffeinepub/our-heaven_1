@@ -4,7 +4,7 @@ import Map "mo:core/Map";
 import Array "mo:core/Array";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
-import Storage "Storage";
+import Storage "./Storage";
 import Prim "mo:prim";
 import Runtime "mo:core/Runtime";
 

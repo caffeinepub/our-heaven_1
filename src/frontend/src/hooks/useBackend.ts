@@ -1,5 +1,6 @@
+import { useActor } from "@caffeineai/core-infrastructure";
+import { createActor } from "../backend";
 import type { backendInterface } from "../backend.d.ts";
-import { useActor } from "./useActor";
 
 /**
  * Returns the backend actor or null while it is loading.
@@ -9,5 +10,6 @@ export function useBackend(): {
   actor: backendInterface | null;
   isFetching: boolean;
 } {
-  return useActor();
+  const { actor, isFetching } = useActor(createActor);
+  return { actor: actor as backendInterface | null, isFetching };
 }

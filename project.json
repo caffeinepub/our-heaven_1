@@ -1,0 +1,21 @@
+{
+  "overview": "We are friends is a private social and educational app for a close-knit community with chat, quizzes, games, learning activities, attendance, and more.",
+  "features": [
+    "Group and private 1-on-1 messaging with media support",
+    "Games box with 7 activities including Math, Vocabulary, and Coloring",
+    "New Learning Activities box with Writing, Reading, and Science",
+    "Attendance and level tracking for leaders",
+    "AI assistant (Luttapi) floating button",
+    "Red/blue space theme with planets and rocket"
+  ],
+  "category": "social",
+  "tags": [
+    "social",
+    "education",
+    "games",
+    "community",
+    "learning",
+    "kids"
+  ],
+  "last_updated": "2026-04-08T01:59:58.150Z"
+}
