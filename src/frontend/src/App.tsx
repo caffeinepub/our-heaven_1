@@ -142,8 +142,7 @@ type Screen =
   | "settings"
   | "timetable"
   | "luttapi"
-  | "srida-greeting"
-  | "mahavir-greeting";
+  | "srida-greeting";
 
 interface NotificationItem {
   id: string;
@@ -616,55 +615,6 @@ function StarsBackground() {
   );
 }
 
-function EasterEgg({
-  style,
-  color,
-  stripeColor,
-}: {
-  style: React.CSSProperties;
-  color: string;
-  stripeColor: string;
-}) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%",
-        background: color,
-        overflow: "hidden",
-        pointerEvents: "none",
-        ...style,
-      }}
-    >
-      {/* horizontal stripe */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: "42%",
-          height: "18%",
-          background: stripeColor,
-          opacity: 0.7,
-        }}
-      />
-      {/* dot decoration */}
-      <div
-        style={{
-          position: "absolute",
-          width: "28%",
-          height: "20%",
-          borderRadius: "50%",
-          background: stripeColor,
-          opacity: 0.5,
-          top: "22%",
-          left: "34%",
-        }}
-      />
-    </div>
-  );
-}
-
 function SpaceDecorations() {
   return (
     <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
@@ -718,62 +668,6 @@ function SpaceDecorations() {
       <div className="absolute top-1/4 left-1/4 text-sm opacity-40">✨</div>
       <div className="absolute top-2/3 right-1/4 text-xs opacity-35">⭐</div>
       <div className="absolute top-1/2 left-1/3 text-xs opacity-30">✦</div>
-
-      {/* ── Easter Egg Decorations ── */}
-      {/* Egg 1 - pink, top-left */}
-      <EasterEgg
-        color="#FFB6C1"
-        stripeColor="#FF69B4"
-        style={{ width: 36, height: 50, top: 12, left: 14, opacity: 0.62 }}
-      />
-      {/* Egg 2 - yellow, top-center */}
-      <EasterEgg
-        color="#FFFACD"
-        stripeColor="#FFD700"
-        style={{ width: 30, height: 42, top: 8, left: "46%", opacity: 0.55 }}
-      />
-      {/* Egg 3 - green, mid-right */}
-      <EasterEgg
-        color="#90EE90"
-        stripeColor="#32CD32"
-        style={{ width: 34, height: 48, top: "40%", right: 10, opacity: 0.6 }}
-      />
-      {/* Egg 4 - purple, bottom-right */}
-      <EasterEgg
-        color="#DDA0DD"
-        stripeColor="#9370DB"
-        style={{ width: 40, height: 56, bottom: 60, right: 18, opacity: 0.58 }}
-      />
-      {/* Egg 5 - blue, bottom-center */}
-      <EasterEgg
-        color="#87CEEB"
-        stripeColor="#4169E1"
-        style={{
-          width: 32,
-          height: 44,
-          bottom: 14,
-          left: "52%",
-          opacity: 0.55,
-        }}
-      />
-      {/* Egg 6 - orange/gold, mid-left lower */}
-      <EasterEgg
-        color="#FFD700"
-        stripeColor="#FF8C00"
-        style={{ width: 28, height: 40, top: "62%", left: 16, opacity: 0.52 }}
-      />
-      {/* Egg 7 - pink-purple, top-right area below planet */}
-      <EasterEgg
-        color="#FFB6C1"
-        stripeColor="#DDA0DD"
-        style={{ width: 26, height: 36, top: "28%", right: 22, opacity: 0.5 }}
-      />
-      {/* Egg 8 - green, bottom-left */}
-      <EasterEgg
-        color="#98FB98"
-        stripeColor="#00C957"
-        style={{ width: 38, height: 52, bottom: 80, left: 28, opacity: 0.57 }}
-      />
     </div>
   );
 }
@@ -6687,8 +6581,6 @@ function AppInner() {
   const lastSeenCountRef = useRef(0);
   const hasViewedMessagesRef = useRef(false);
   const notifPermGranted = useRef(false);
-  const mahavirNextRef = useRef<Screen>("home");
-
   // Notifications state
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const lastNotifMsgCountRef = useRef(0);
@@ -6966,18 +6858,7 @@ function AppInner() {
                         dest = "home";
                       }
                     }
-                    // Easter greeting: show only once per user
-                    const easterSeen = localStorage.getItem(
-                      "waf_easter_2026_seen",
-                    );
-                    if (easterSeen) {
-                      // Already seen — skip greeting, go directly to dest
-                      navigate(dest);
-                    } else {
-                      localStorage.setItem("waf_easter_2026_seen", "1");
-                      mahavirNextRef.current = dest;
-                      navigate("mahavir-greeting");
-                    }
+                    navigate(dest);
                   } catch {
                     navigate("welcome");
                   }
@@ -7356,19 +7237,6 @@ function AppInner() {
               <SridaGreetingScreen onComplete={() => navigate("home")} />
             </motion.div>
           )}
-          {screen === "mahavir-greeting" && (
-            <motion.div
-              key="mahavir-greeting"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <MahavirGreetingScreen
-                onComplete={() => navigate(mahavirNextRef.current)}
-              />
-            </motion.div>
-          )}
           {screen === "messaging-hub" && (
             <motion.div
               key="messaging-hub"
@@ -7436,7 +7304,6 @@ function AppInner() {
         "splash",
         "welcome",
         "srida-greeting",
-        "mahavir-greeting",
         "register",
         "account-ready",
         "luttapi",
@@ -8310,176 +8177,6 @@ function SridaGreetingScreen({ onComplete }: { onComplete: () => void }) {
       <p style={{ color: "rgba(255,255,255,0.6)", marginTop: "8px" }}>
         Hi Srida! 👋
       </p>
-    </div>
-  );
-}
-
-function MahavirGreetingScreen({ onComplete }: { onComplete: () => void }) {
-  return <EasterGreetingScreen onComplete={onComplete} />;
-}
-
-function GreetingEgg({
-  bg,
-  stripe,
-  w,
-  h,
-  pos,
-}: {
-  bg: string;
-  stripe: string;
-  w: number;
-  h: number;
-  pos: { left?: string; right?: string; top?: string; bottom?: string };
-}) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        width: w,
-        height: h,
-        borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%",
-        background: bg,
-        opacity: 0.7,
-        overflow: "hidden",
-        ...pos,
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: "42%",
-          height: "18%",
-          background: stripe,
-          opacity: 0.75,
-        }}
-      />
-    </div>
-  );
-}
-
-function EasterGreetingScreen({ onComplete }: { onComplete: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    // Fallback: auto-advance after 5 seconds max
-    const fallback = setTimeout(onComplete, 5000);
-    return () => clearTimeout(fallback);
-  }, [onComplete]);
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "#0a0a12",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-      }}
-    >
-      {/* Colorful Easter title overlay */}
-      <div
-        style={{
-          position: "absolute",
-          top: 24,
-          left: 0,
-          right: 0,
-          textAlign: "center",
-          zIndex: 10000,
-          pointerEvents: "none",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "clamp(1.4rem, 6vw, 2.2rem)",
-            fontWeight: 800,
-            letterSpacing: "0.02em",
-            background:
-              "linear-gradient(90deg, #FFB6C1, #FFD700, #90EE90, #87CEEB, #DDA0DD)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            textShadow: "none",
-            filter: "drop-shadow(0 2px 8px rgba(255,200,100,0.5))",
-          }}
-        >
-          🐣 Happy Easter! 🥚
-        </span>
-      </div>
-
-      {/* Easter video */}
-      <video
-        ref={videoRef}
-        src="/assets/easter-video.mp4"
-        autoPlay
-        muted
-        playsInline
-        onEnded={onComplete}
-        style={{
-          maxWidth: "100%",
-          maxHeight: "100%",
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-        }}
-      />
-
-      {/* Pastel egg decorations around the video */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          overflow: "hidden",
-        }}
-      >
-        <GreetingEgg
-          bg="#FFB6C1"
-          stripe="#FF69B4"
-          w={38}
-          h={54}
-          pos={{ left: "4%", top: "10%" }}
-        />
-        <GreetingEgg
-          bg="#FFFACD"
-          stripe="#FFD700"
-          w={32}
-          h={46}
-          pos={{ right: "4%", top: "8%" }}
-        />
-        <GreetingEgg
-          bg="#90EE90"
-          stripe="#32CD32"
-          w={36}
-          h={50}
-          pos={{ left: "6%", bottom: "10%" }}
-        />
-        <GreetingEgg
-          bg="#DDA0DD"
-          stripe="#9370DB"
-          w={40}
-          h={56}
-          pos={{ right: "5%", bottom: "12%" }}
-        />
-        <GreetingEgg
-          bg="#87CEEB"
-          stripe="#4169E1"
-          w={30}
-          h={42}
-          pos={{ left: "44%", bottom: "6%" }}
-        />
-        <GreetingEgg
-          bg="#FFD700"
-          stripe="#FF8C00"
-          w={28}
-          h={40}
-          pos={{ right: "30%", top: "6%" }}
-        />
-      </div>
     </div>
   );
 }
